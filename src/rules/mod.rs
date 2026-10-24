@@ -55,7 +55,8 @@ pub enum Severity {
 
 impl fmt::Display for Severity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
+        // `pad` so width/alignment specifiers work in tables.
+        f.pad(match self {
             Severity::Info => "info",
             Severity::Low => "low",
             Severity::Medium => "medium",
@@ -543,6 +544,7 @@ mod tests {
         assert_eq!(Severity::Info.to_string(), "info");
         assert_eq!(Severity::Low.to_string(), "low");
         assert_eq!(Severity::Medium.to_string(), "medium");
+        assert_eq!(format!("{:<6}|", Severity::Low), "low   |");
         assert!(Severity::High > Severity::Medium && Severity::Low > Severity::Info);
     }
 }

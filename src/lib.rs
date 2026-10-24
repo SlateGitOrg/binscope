@@ -2,7 +2,7 @@
 //!
 //! Static triage for ELF, Mach-O and PE binaries.
 //!
-//! * [`format`] parses the container (via `goblin`) into a format-neutral
+//! * [`mod@format`] parses the container (via `goblin`) into a format-neutral
 //!   [`format::BinaryInfo`]: sections with per-section entropy, imports,
 //!   exports, libraries and format-specific metadata.
 //! * [`entropy`], [`strings`], [`hashes`] and [`fuzzy`] are the analysis

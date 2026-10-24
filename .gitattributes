@@ -1,0 +1,4 @@
+fixtures/bin/** binary
+*.tsv text eol=lf
+*.rs text eol=lf
+*.yaml text eol=lf
