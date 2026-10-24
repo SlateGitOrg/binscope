@@ -23,6 +23,7 @@ pub mod error;
 pub mod format;
 pub mod fuzzy;
 pub mod hashes;
+pub mod report;
 pub mod rules;
 pub mod strings;
 pub mod synth;
