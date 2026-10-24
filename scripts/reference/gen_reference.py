@@ -12,6 +12,11 @@ Outputs (all names are repo-relative fixture paths or synth/<name>):
     ssdeep_compare.tsv  name_a, name_b, score          (libfuzzy fuzzy_compare)
     tlsh_diff.tsv       name_a, name_b, diff, diff_xlen (Tlsh::totalDiff)
     pefile.tsv          name, imphash, section, raw_size, entropy (pefile)
+    sections.tsv        name, section, offset, size, address (llvm-readobj; ELF, Mach-O)
+    imports.tsv         name, comma-joined sorted undefined symbols (llvm-nm; ELF, Mach-O)
+
+llvm-readobj / llvm-nm come from the Rust toolchain's llvm-tools component
+(`rustup component add llvm-tools`); set LLVM_BIN to override.
 """
 import csv
 import itertools
@@ -20,6 +25,9 @@ import random
 import subprocess
 import sys
 from pathlib import Path
+
+import json
+import re
 
 import pefile
 
@@ -105,6 +113,37 @@ def main() -> None:
             for s in pe.sections:
                 name = s.Name.rstrip(b"\0").decode()
                 f.write(f"{names[p]}\t{imph}\t{name}\t{s.SizeOfRawData}\t{s.get_entropy():.12f}\n")
+    # --- llvm-readobj / llvm-nm (ELF and single-arch Mach-O) ----------------
+    llvm = Path(os.environ.get("LLVM_BIN") or next(
+        Path(run(["rustc", "--print", "sysroot"]).strip()).glob("lib/rustlib/*/bin/llvm-readobj")).parent)
+    native = [p for p in fixtures if p.parent.name.startswith(("elf-", "macho-")) and p.parent.name != "macho-universal"]
+    with open(OUT / "sections.tsv", "w") as f:
+        f.write(header.replace("pefile 2024.8.26", "llvm-readobj (Rust llvm-tools)"))
+        for p in native:
+            if p.parent.name.startswith("elf-"):
+                doc = json.loads(run([llvm / "llvm-readobj", "--elf-output-style=JSON", "--sections", p]))
+                for item in doc[0]["Sections"]:
+                    s = item["Section"]
+                    if s["Type"]["Name"] == "SHT_NULL":
+                        continue
+                    size = 0 if s["Type"]["Name"] == "SHT_NOBITS" else s["Size"]
+                    f.write(f"{names[p]}\t{s['Name']['Name']}\t{s['Offset']}\t{size}\t{s['Address']}\n")
+            else:
+                text = run([llvm / "llvm-readobj", "--sections", p])
+                for block in text.split("Section {")[1:]:
+                    sect = re.search(r"Name: (\S+)", block).group(1)
+                    seg = re.search(r"Segment: (\S+)", block).group(1)
+                    addr = int(re.search(r"Address: (0x[0-9A-Fa-f]+)", block).group(1), 16)
+                    size = int(re.search(r"Size: (0x[0-9A-Fa-f]+)", block).group(1), 16)
+                    off = int(re.search(r"Offset: (\d+)", block).group(1))
+                    zerofill = re.search(r"Type: (ZeroFill|GBZeroFill|ThreadLocalZerofill)", block)
+                    f.write(f"{names[p]}\t{seg},{sect}\t{off}\t{0 if zerofill or off == 0 else size}\t{addr}\n")
+    with open(OUT / "imports.tsv", "w") as f:
+        f.write(header.replace("pefile 2024.8.26", "llvm-nm (Rust llvm-tools)"))
+        for p in native:
+            flags = ["-D", "--undefined-only"] if p.parent.name.startswith("elf-") else ["--undefined-only"]
+            syms = sorted({line.split()[-1] for line in run([llvm / "llvm-nm", *flags, p]).splitlines() if line.strip()})
+            f.write(f"{names[p]}\t{','.join(syms)}\n")
     print(f"{len(files)} files, {len(pairs)} pairs -> {OUT}")
 
 

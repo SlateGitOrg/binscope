@@ -106,3 +106,72 @@ fn tlsh_distance_matches_total_diff() {
         assert_eq!(a.distance(&b, false), row[3].parse::<u32>().unwrap(), "xlen {} vs {}", row[0], row[1]);
     }
 }
+
+#[test]
+fn pe_imphash_and_section_entropy_match_pefile() {
+    let table = rows("pefile.tsv");
+    let mut checked_sections = 0;
+    let mut by_file: HashMap<String, Vec<Vec<String>>> = HashMap::new();
+    for row in table {
+        by_file.entry(row[0].clone()).or_default().push(row);
+    }
+    assert_eq!(by_file.len(), 40, "every PE fixture has pefile output");
+    for (name, sections) in &by_file {
+        let data = input(name);
+        let report = binscope::analyze_bytes(
+            name,
+            &data,
+            &binscope::TriageOptions::default(),
+            &binscope::rules::RuleSet::empty(),
+        );
+        assert_eq!(report.import_hashes.imphash.as_deref(), Some(sections[0][1].as_str()), "imphash {name}");
+        let ours = report.binary.expect("PE parses").sections;
+        assert_eq!(ours.len(), sections.len(), "section count {name}");
+        for (s, row) in ours.iter().zip(sections) {
+            assert_eq!(s.name, row[2], "{name}");
+            assert_eq!(s.file_size, row[3].parse::<u64>().unwrap(), "{name} {}", s.name);
+            let expected: f64 = row[4].parse().unwrap();
+            assert!((s.entropy - expected).abs() < 1e-9, "{name} {}: {} vs {expected}", s.name, s.entropy);
+            checked_sections += 1;
+        }
+    }
+    assert!(checked_sections > 100);
+}
+
+fn parse_native(name: &str) -> binscope::format::BinaryInfo {
+    binscope::format::parse(&input(name)).unwrap().expect("supported format")
+}
+
+#[test]
+fn elf_and_macho_sections_match_llvm_readobj() {
+    let mut by_file: HashMap<String, Vec<Vec<String>>> = HashMap::new();
+    for row in rows("sections.tsv") {
+        by_file.entry(row[0].clone()).or_default().push(row);
+    }
+    assert_eq!(by_file.len(), 80, "40 ELF + 40 single-arch Mach-O fixtures");
+    for (name, expected) in &by_file {
+        let ours = parse_native(name).sections;
+        let got: Vec<(String, u64, u64, u64)> = ours
+            .iter()
+            .map(|s| (s.name.clone(), s.file_offset, s.file_size, s.virtual_address))
+            .collect();
+        let want: Vec<(String, u64, u64, u64)> = expected
+            .iter()
+            .map(|r| (r[1].clone(), r[2].parse().unwrap(), r[3].parse().unwrap(), r[4].parse().unwrap()))
+            .collect();
+        assert_eq!(got, want, "{name}");
+    }
+}
+
+#[test]
+fn elf_and_macho_imports_match_llvm_nm() {
+    let table = rows("imports.tsv");
+    assert_eq!(table.len(), 80);
+    for row in table {
+        let mut ours: Vec<String> = parse_native(&row[0]).imports.into_iter().map(|i| i.name).collect();
+        ours.sort();
+        ours.dedup();
+        let want: Vec<String> = row.get(1).map(|s| s.split(',').map(str::to_string).collect()).unwrap_or_default();
+        assert_eq!(ours, want, "{}", row[0]);
+    }
+}
