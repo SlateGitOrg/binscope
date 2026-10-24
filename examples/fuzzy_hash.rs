@@ -5,11 +5,7 @@ fn main() -> std::io::Result<()> {
     for path in std::env::args().skip(1) {
         let data = std::fs::read(&path)?;
         let d = binscope::fuzzy::FuzzyDigests::of(&data);
-        println!(
-            "{}\t{}\t{path}",
-            d.ssdeep.unwrap_or_default(),
-            d.tlsh.unwrap_or_else(|| "TNULL".into())
-        );
+        println!("{}\t{}\t{path}", d.ssdeep.unwrap_or_default(), d.tlsh.unwrap_or_else(|| "TNULL".into()));
     }
     Ok(())
 }

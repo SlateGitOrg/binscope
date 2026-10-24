@@ -9,8 +9,9 @@ use goblin::elf::section_header::{SHF_ALLOC, SHF_EXECINSTR, SHF_WRITE, SHT_NOBIT
 use goblin::elf::sym::{STB_GLOBAL, STB_WEAK, STT_FUNC, STT_GNU_IFUNC, STT_OBJECT};
 use goblin::elf::Elf;
 
-use super::{overlay_after, section_entropy, BinaryInfo, BinaryKind, ElfDetails, Export, Format, Import, Mitigation, Section};
-use crate::error::Result;
+use super::{
+    overlay_after, section_entropy, BinaryInfo, BinaryKind, ElfDetails, Export, Format, Import, Mitigation, Section,
+};
 
 fn machine_name(machine: u16) -> String {
     match machine {
@@ -46,9 +47,9 @@ fn os_abi_name(abi: u8) -> &'static str {
 fn version_libraries(elf: &Elf<'_>) -> HashMap<u16, String> {
     let mut map = HashMap::new();
     if let Some(verneed) = &elf.verneed {
-        for need in verneed.iter() {
+        for need in verneed {
             let Some(file) = elf.dynstrtab.get_at(need.vn_file) else { continue };
-            for aux in need.iter() {
+            for aux in &need {
                 map.insert(aux.vna_other & 0x7fff, file.to_string());
             }
         }
@@ -70,23 +71,11 @@ fn imports_and_exports(elf: &Elf<'_>) -> (Vec<Import>, Vec<Export>) {
             continue;
         }
         if sym.st_shndx == 0 {
-            let library = elf
-                .versym
-                .as_ref()
-                .and_then(|v| v.get_at(i))
-                .and_then(|v| versions.get(&v.version()).cloned());
-            imports.push(Import {
-                library,
-                name: name.to_string(),
-                ordinal: None,
-                weak: bind == STB_WEAK,
-            });
+            let library =
+                elf.versym.as_ref().and_then(|v| v.get_at(i)).and_then(|v| versions.get(&v.version()).cloned());
+            imports.push(Import { library, name: name.to_string(), ordinal: None, weak: bind == STB_WEAK });
         } else if matches!(sym.st_type(), STT_FUNC | STT_OBJECT | STT_GNU_IFUNC) {
-            exports.push(Export {
-                name: name.to_string(),
-                address: sym.st_value,
-                forwarded_to: None,
-            });
+            exports.push(Export { name: name.to_string(), address: sym.st_value, forwarded_to: None });
         }
     }
     (imports, exports)
@@ -117,7 +106,8 @@ fn mitigations(elf: &Elf<'_>, imports: &[Import]) -> Vec<Mitigation> {
     let nx = stack.is_some_and(|p| p.p_flags & PF_X == 0);
     let pie = elf.header.e_type == ET_DYN && (elf.interpreter.is_some() || flags_1 & DF_1_PIE != 0);
     let canary = imports.iter().any(|i| i.name == "__stack_chk_fail" || i.name == "__stack_chk_guard");
-    let fortify = imports.iter().any(|i| i.name.starts_with("__") && i.name.ends_with("_chk") && i.name != "__stack_chk_fail");
+    let fortify =
+        imports.iter().any(|i| i.name.starts_with("__") && i.name.ends_with("_chk") && i.name != "__stack_chk_fail");
     vec![
         Mitigation::new("pie", pie, None),
         Mitigation::new(
@@ -131,7 +121,7 @@ fn mitigations(elf: &Elf<'_>, imports: &[Import]) -> Vec<Mitigation> {
     ]
 }
 
-pub(super) fn analyze(elf: &Elf<'_>, data: &[u8]) -> Result<BinaryInfo> {
+pub(super) fn analyze(elf: &Elf<'_>, data: &[u8]) -> BinaryInfo {
     let mut sections = Vec::new();
     let mut image_end = 0u64;
     for sh in &elf.section_headers {
@@ -195,7 +185,7 @@ pub(super) fn analyze(elf: &Elf<'_>, data: &[u8]) -> Result<BinaryInfo> {
     let mut rpaths: Vec<String> = elf.rpaths.iter().map(|s| (*s).to_string()).collect();
     rpaths.extend(elf.runpaths.iter().map(|s| (*s).to_string()));
 
-    Ok(BinaryInfo {
+    BinaryInfo {
         format: Format::Elf,
         arch: machine_name(h.e_machine),
         bits: if elf.is_64 { 64 } else { 32 },
@@ -220,7 +210,7 @@ pub(super) fn analyze(elf: &Elf<'_>, data: &[u8]) -> Result<BinaryInfo> {
         }),
         macho: None,
         slices: Vec::new(),
-    })
+    }
 }
 
 #[cfg(test)]
@@ -238,7 +228,17 @@ mod tests {
         assert_eq!(machine_name(20), "powerpc");
         assert_eq!(machine_name(21), "powerpc64");
         assert!(!machine_name(2).is_empty());
-        for (abi, name) in [(0, "sysv"), (3, "gnu/linux"), (6, "solaris"), (9, "freebsd"), (12, "openbsd"), (2, "netbsd"), (97, "arm"), (255, "standalone"), (50, "other")] {
+        for (abi, name) in [
+            (0, "sysv"),
+            (3, "gnu/linux"),
+            (6, "solaris"),
+            (9, "freebsd"),
+            (12, "openbsd"),
+            (2, "netbsd"),
+            (97, "arm"),
+            (255, "standalone"),
+            (50, "other"),
+        ] {
             assert_eq!(os_abi_name(abi), name);
         }
     }

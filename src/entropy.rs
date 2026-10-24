@@ -14,10 +14,7 @@ pub struct Histogram {
 
 impl Default for Histogram {
     fn default() -> Self {
-        Self {
-            counts: [0; 256],
-            total: 0,
-        }
+        Self { counts: [0; 256], total: 0 }
     }
 }
 

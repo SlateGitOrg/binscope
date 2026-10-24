@@ -53,11 +53,7 @@ impl FileDigests {
             sha1.update(chunk);
             sha256.update(chunk);
         }
-        Self {
-            md5: hex(&md5.finalize()),
-            sha1: hex(&sha1.finalize()),
-            sha256: hex(&sha256.finalize()),
-        }
+        Self { md5: hex(&md5.finalize()), sha1: hex(&sha1.finalize()), sha256: hex(&sha256.finalize()) }
     }
 }
 
@@ -84,7 +80,7 @@ fn imphash_func(dll_lower_full: &str, import: &ImportRef<'_>) -> String {
 fn imphash_lib(dll: &str) -> String {
     let lower = dll.to_ascii_lowercase();
     match lower.rsplit_once('.') {
-        Some((stem, ext)) if matches!(ext, "dll" | "ocx" | "sys") => stem.to_string(),
+        Some((stem, "dll" | "ocx" | "sys")) => stem.to_string(),
         _ => lower,
     }
 }
@@ -146,10 +142,7 @@ mod tests {
         let d = FileDigests::of(b"abc");
         assert_eq!(d.md5, "900150983cd24fb0d6963f7d28e17f72");
         assert_eq!(d.sha1, "a9993e364706816aba3e25717850c26c9cd0d89d");
-        assert_eq!(
-            d.sha256,
-            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-        );
+        assert_eq!(d.sha256, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
     }
 
     #[test]
@@ -183,10 +176,7 @@ mod tests {
     #[test]
     fn imphash_empty_is_none() {
         assert_eq!(imphash(Vec::new()), None);
-        assert_eq!(
-            imphash(vec![("a.dll", ImportRef::Name("B"))]),
-            Some(md5_hex(b"a.b"))
-        );
+        assert_eq!(imphash(vec![("a.dll", ImportRef::Name("B"))]), Some(md5_hex(b"a.b")));
     }
 
     #[test]

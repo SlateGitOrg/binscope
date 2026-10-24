@@ -18,7 +18,7 @@
 //! Hashing is O(n) time and O(1) space; the distance is O(1) (32 body bytes
 //! via a 256x256 lookup table computed at compile time).
 
-use std::fmt;
+use std::fmt::{self, Write as _};
 use std::str::FromStr;
 
 use super::tlsh_tables::{TOPVAL, V_TABLE};
@@ -47,20 +47,24 @@ fn l_capturing(len: u64) -> u8 {
     idx.min(TOPVAL.len() - 1) as u8
 }
 
-const fn pair_diff(a: u8, b: u8) -> u32 {
+#[allow(clippy::manual_abs_diff)]
+const fn pair_diff(left: u8, right: u8) -> u32 {
     let mut total = 0;
-    let mut k = 0;
-    while k < 4 {
-        let x = (a >> (2 * k)) & 3;
-        let y = (b >> (2 * k)) & 3;
-        let d = if x > y { x - y } else { y - x };
+    let mut pair = 0;
+    while pair < 4 {
+        let lq = (left >> (2 * pair)) & 3;
+        let rq = (right >> (2 * pair)) & 3;
+        // Not `abs_diff`: this runs 2^18 times during const evaluation and
+        // the plain comparison keeps that well under rustc's const-eval budget.
+        let delta = if lq > rq { lq - rq } else { rq - lq };
         // A full quartile flip (0 <-> 3) is penalised more than linearly.
-        total += if d == 3 { 6 } else { d as u32 };
-        k += 1;
+        total += if delta == 3 { 6 } else { delta as u32 };
+        pair += 1;
     }
     total
 }
 
+#[allow(clippy::large_stack_arrays)] // const-evaluated at compile time, never on the stack
 const fn build_pair_table() -> [[u8; 256]; 256] {
     let mut t = [[0u8; 256]; 256];
     let mut a = 0;
@@ -78,11 +82,7 @@ const fn build_pair_table() -> [[u8; 256]; 256] {
 static BIT_PAIRS_DIFF: [[u8; 256]; 256] = build_pair_table();
 
 fn mod_diff(x: u32, y: u32, range: u32) -> u32 {
-    let (dl, dr) = if y > x {
-        (y - x, x + range - y)
-    } else {
-        (x - y, y + range - x)
-    };
+    let (dl, dr) = if y > x { (y - x, x + range - y) } else { (x - y, y + range - x) };
     dl.min(dr)
 }
 
@@ -104,12 +104,7 @@ impl Default for TlshBuilder {
 impl TlshBuilder {
     /// Fresh builder.
     pub fn new() -> Self {
-        Self {
-            buckets: [0; 256],
-            window: [0; WINDOW],
-            checksum: 0,
-            len: 0,
-        }
+        Self { buckets: [0; 256], window: [0; WINDOW], checksum: 0, len: 0 }
     }
 
     /// Feed more input.
@@ -118,12 +113,13 @@ impl TlshBuilder {
         for &byte in data {
             self.window[j] = byte;
             if self.len >= 4 {
-                let w = &self.window;
-                let c0 = w[j];
-                let c1 = w[(j + 4) % WINDOW];
-                let c2 = w[(j + 3) % WINDOW];
-                let c3 = w[(j + 2) % WINDOW];
-                let c4 = w[(j + 1) % WINDOW];
+                // c0 is the newest byte, c4 the oldest in the 5-byte window.
+                let win = &self.window;
+                let c0 = win[j];
+                let c1 = win[(j + 4) % WINDOW];
+                let c2 = win[(j + 3) % WINDOW];
+                let c3 = win[(j + 2) % WINDOW];
+                let c4 = win[(j + 1) % WINDOW];
                 self.checksum = b_mapping(0, c0, c1, self.checksum);
                 for (salt, x, y) in [(2, c1, c2), (3, c1, c3), (5, c2, c3), (7, c2, c4), (11, c1, c4), (13, c3, c4)] {
                     self.buckets[usize::from(b_mapping(salt, c0, x, y))] += 1;
@@ -138,15 +134,9 @@ impl TlshBuilder {
     /// 4 GiB, or without enough variety to fill half of the buckets (the
     /// reference implementation returns no hash in those cases too).
     pub fn finish(&self) -> Result<Tlsh> {
-        let unavailable = |reason: String| Error::DigestUnavailable {
-            kind: "tlsh",
-            reason,
-        };
+        let unavailable = |reason: String| Error::DigestUnavailable { kind: "tlsh", reason };
         if self.len < MIN_DATA_LENGTH as u64 {
-            return Err(unavailable(format!(
-                "input is {} bytes; TLSH needs at least {MIN_DATA_LENGTH}",
-                self.len
-            )));
+            return Err(unavailable(format!("input is {} bytes; TLSH needs at least {MIN_DATA_LENGTH}", self.len)));
         }
         if self.len > u64::from(u32::MAX) {
             return Err(unavailable("input exceeds 4 GiB".into()));
@@ -154,11 +144,8 @@ impl TlshBuilder {
         let mut sorted = [0u32; EFF_BUCKETS];
         sorted.copy_from_slice(&self.buckets[..EFF_BUCKETS]);
         sorted.sort_unstable();
-        let (q1, q2, q3) = (
-            sorted[EFF_BUCKETS / 4 - 1],
-            sorted[EFF_BUCKETS / 2 - 1],
-            sorted[EFF_BUCKETS - EFF_BUCKETS / 4 - 1],
-        );
+        let (q1, q2, q3) =
+            (sorted[EFF_BUCKETS / 4 - 1], sorted[EFF_BUCKETS / 2 - 1], sorted[EFF_BUCKETS - EFF_BUCKETS / 4 - 1]);
         let nonzero = self.buckets[..EFF_BUCKETS].iter().filter(|&&c| c > 0).count();
         if nonzero <= 4 * CODE_SIZE / 2 {
             return Err(unavailable(
@@ -185,13 +172,7 @@ impl TlshBuilder {
         // followed by single-precision division; mirror both exactly.
         let q1_ratio = ((q1.wrapping_mul(100) as f32 / q3 as f32) as u32 % 16) as u8;
         let q2_ratio = ((q2.wrapping_mul(100) as f32 / q3 as f32) as u32 % 16) as u8;
-        Ok(Tlsh {
-            checksum: self.checksum,
-            lvalue: l_capturing(self.len),
-            q1_ratio,
-            q2_ratio,
-            code,
-        })
+        Ok(Tlsh { checksum: self.checksum, lvalue: l_capturing(self.len), q1_ratio, q2_ratio, code })
     }
 }
 
@@ -271,7 +252,7 @@ impl Tlsh {
         let mut s = String::with_capacity(72);
         s.push_str("T1");
         for b in bytes {
-            s.push_str(&format!("{b:02X}"));
+            let _ = write!(s, "{b:02X}");
         }
         s
     }

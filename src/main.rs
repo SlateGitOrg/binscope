@@ -216,11 +216,7 @@ fn to_json<T: serde::Serialize>(value: &T) -> String {
 fn run_triage(args: &TriageArgs, style: Style, out: &mut impl Write) -> Result<ExitCode> {
     let rules = args.rules.load()?;
     let opts = TriageOptions {
-        strings: StringOptions {
-            min_len: args.min_len,
-            utf16: !args.no_utf16,
-            ..StringOptions::default()
-        },
+        strings: StringOptions { min_len: args.min_len, utf16: !args.no_utf16, ..StringOptions::default() },
         max_listed_strings: args.max_strings,
     };
     let files = triage::collect_files(&args.paths)?;
@@ -261,10 +257,7 @@ struct HashLine {
 
 fn run_hash(args: &HashArgs, out: &mut impl Write) -> Result<ExitCode> {
     let rules = RuleSet::empty();
-    let opts = TriageOptions {
-        max_listed_strings: 0,
-        ..TriageOptions::default()
-    };
+    let opts = TriageOptions { max_listed_strings: 0, ..TriageOptions::default() };
     let mut lines = Vec::new();
     for f in triage::collect_files(&args.paths)? {
         let r = triage::analyze_path(&f, &opts, &rules)?;
@@ -316,28 +309,13 @@ fn operand(arg: &str) -> Result<Operand> {
             .ok()
             .filter(|s| !s.is_empty())
             .map(|s| binscope::hashes::md5_hex(s.as_bytes()));
-        return Ok(Operand {
-            ssdeep: ssdeep::hash(&data).ok(),
-            tlsh: tlsh::hash(&data).ok(),
-            imphash,
-            is_file: true,
-        });
+        return Ok(Operand { ssdeep: ssdeep::hash(&data).ok(), tlsh: tlsh::hash(&data).ok(), imphash, is_file: true });
     }
     if arg.starts_with("T1") || arg.starts_with("t1") {
-        return Ok(Operand {
-            ssdeep: None,
-            tlsh: Some(arg.parse()?),
-            imphash: None,
-            is_file: false,
-        });
+        return Ok(Operand { ssdeep: None, tlsh: Some(arg.parse()?), imphash: None, is_file: false });
     }
     if arg.contains(':') {
-        return Ok(Operand {
-            ssdeep: Some(arg.parse()?),
-            tlsh: None,
-            imphash: None,
-            is_file: false,
-        });
+        return Ok(Operand { ssdeep: Some(arg.parse()?), tlsh: None, imphash: None, is_file: false });
     }
     Err(Error::Config(format!("{arg:?} is neither a file nor an ssdeep/TLSH digest")))
 }
@@ -447,7 +425,9 @@ fn main() -> ExitCode {
     };
     match result {
         Ok(code) => code,
-        Err(Error::Io { ref path, ref source }) if path.as_os_str() == "<stdout>" && source.kind() == std::io::ErrorKind::BrokenPipe => {
+        Err(Error::Io { ref path, ref source })
+            if path.as_os_str() == "<stdout>" && source.kind() == std::io::ErrorKind::BrokenPipe =>
+        {
             ExitCode::SUCCESS
         }
         Err(e) => {

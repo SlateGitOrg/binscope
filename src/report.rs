@@ -153,11 +153,8 @@ fn render_image(out: &mut String, b: &BinaryInfo, style: Style, indent: &str) {
         );
     }
     if !b.mitigations.is_empty() {
-        let items: Vec<String> = b
-            .mitigations
-            .iter()
-            .map(|m| format!("{} {}", m.name, if m.enabled { "yes" } else { "no" }))
-            .collect();
+        let items: Vec<String> =
+            b.mitigations.iter().map(|m| format!("{} {}", m.name, if m.enabled { "yes" } else { "no" })).collect();
         let _ = writeln!(out, "\n{indent}{} {}", style.bold("Mitigations:"), items.join(" | "));
     }
     if let Some(o) = &b.overlay {
@@ -184,12 +181,7 @@ pub fn render_triage(r: &TriageReport, style: Style) -> String {
         &mut out,
         style,
         "size",
-        &format!(
-            "{} bytes, entropy {:.3} ({})",
-            r.file.size,
-            r.file.entropy,
-            entropy::classify(r.file.entropy)
-        ),
+        &format!("{} bytes, entropy {:.3} ({})", r.file.size, r.file.entropy, entropy::classify(r.file.entropy)),
     );
     kv(&mut out, style, "md5", &r.file.digests.md5);
     kv(&mut out, style, "sha256", &r.file.digests.sha256);
@@ -200,16 +192,7 @@ pub fn render_triage(r: &TriageReport, style: Style) -> String {
         kv(&mut out, style, "symhash", h);
     }
     kv(&mut out, style, "ssdeep", r.fuzzy.ssdeep.as_deref().unwrap_or("-"));
-    kv(
-        &mut out,
-        style,
-        "tlsh",
-        r.fuzzy
-            .tlsh
-            .as_deref()
-            .or(r.fuzzy.tlsh_unavailable.as_deref())
-            .unwrap_or("-"),
-    );
+    kv(&mut out, style, "tlsh", r.fuzzy.tlsh.as_deref().or(r.fuzzy.tlsh_unavailable.as_deref()).unwrap_or("-"));
     let _ = writeln!(out);
     match (&r.binary, &r.unparsed_reason) {
         (Some(b), _) => render_image(&mut out, b, style, ""),
@@ -225,11 +208,7 @@ pub fn render_triage(r: &TriageReport, style: Style) -> String {
     }
     let _ = writeln!(out, "\n{}", style.bold(&format!("Capabilities ({})", r.capabilities.len())));
     for c in &r.capabilities {
-        let attack = if c.attack.is_empty() {
-            String::new()
-        } else {
-            format!(" [{}]", c.attack.join(", "))
-        };
+        let attack = if c.attack.is_empty() { String::new() } else { format!(" [{}]", c.attack.join(", ")) };
         let _ = writeln!(
             out,
             "  {} {} {}{}",
@@ -249,11 +228,7 @@ pub fn render_triage(r: &TriageReport, style: Style) -> String {
         style.bold("Strings:"),
         s.ascii,
         s.utf16le,
-        if tags.is_empty() {
-            String::new()
-        } else {
-            format!("; tagged: {}", tags.join(", "))
-        }
+        if tags.is_empty() { String::new() } else { format!("; tagged: {}", tags.join(", ")) }
     );
     for l in &s.listed {
         let enc = match l.string.encoding {
@@ -330,10 +305,7 @@ pub fn render_clustering(c: &Clustering, style: Style) -> String {
     let _ = writeln!(
         out,
         "{}",
-        style.dim(&format!(
-            "compared {} of {} pairs after exact pruning",
-            c.stats.pairs_compared, c.stats.pairs_total
-        ))
+        style.dim(&format!("compared {} of {} pairs after exact pruning", c.stats.pairs_compared, c.stats.pairs_total))
     );
     for (i, cl) in c.clusters.iter().enumerate() {
         let _ = writeln!(

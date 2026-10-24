@@ -124,11 +124,7 @@ pub(crate) fn parse_chained_imports(blob: &[u8]) -> Result<Vec<ChainedImport>> {
             // lib_ordinal:8 (signed), weak_import:1, name_offset:23
             (i32::from((raw & 0xff) as u8 as i8), raw & 0x100 != 0, (raw >> 9) as usize)
         };
-        out.push(ChainedImport {
-            lib_ordinal,
-            weak,
-            name: name_at(name_off)?,
-        });
+        out.push(ChainedImport { lib_ordinal, weak, name: name_at(name_off)? });
     }
     Ok(out)
 }
@@ -136,11 +132,7 @@ pub(crate) fn parse_chained_imports(blob: &[u8]) -> Result<Vec<ChainedImport>> {
 fn library_for(libs: &[&str], ordinal: i32) -> Option<String> {
     // Ordinal 0 = this image, negative = special lookups (main executable,
     // flat namespace, weak lookup); 1..=n index the LC_LOAD_DYLIB list.
-    usize::try_from(ordinal)
-        .ok()
-        .filter(|&o| o >= 1)
-        .and_then(|o| libs.get(o))
-        .map(|s| (*s).to_string())
+    usize::try_from(ordinal).ok().filter(|&o| o >= 1).and_then(|o| libs.get(o)).map(|s| (*s).to_string())
 }
 
 fn symtab_imports(m: &MachO<'_>) -> Vec<Import> {
@@ -208,7 +200,7 @@ fn imports(m: &MachO<'_>, data: &[u8], base: u64) -> (Vec<Import>, bool) {
 fn analyze_single(m: &MachO<'_>, data: &[u8], base: u64) -> Result<BinaryInfo> {
     let mut sections = Vec::new();
     let mut image_end = base;
-    for seg in m.segments.iter() {
+    for seg in &m.segments {
         if seg.filesize > 0 {
             image_end = image_end.max(base + seg.fileoff + seg.filesize);
         }
@@ -240,11 +232,7 @@ fn analyze_single(m: &MachO<'_>, data: &[u8], base: u64) -> Result<BinaryInfo> {
         .exports()
         .unwrap_or_default()
         .into_iter()
-        .map(|e| Export {
-            name: e.name,
-            address: e.offset,
-            forwarded_to: None,
-        })
+        .map(|e| Export { name: e.name, address: e.offset, forwarded_to: None })
         .collect();
 
     let mut uuid = None;
@@ -296,11 +284,7 @@ fn analyze_single(m: &MachO<'_>, data: &[u8], base: u64) -> Result<BinaryInfo> {
         elf: None,
         macho: Some(MachODetails {
             filetype: filetype_to_str(m.header.filetype).to_ascii_lowercase(),
-            flags: HEADER_FLAGS
-                .iter()
-                .filter(|(f, _)| flags & f != 0)
-                .map(|(_, n)| (*n).to_string())
-                .collect(),
+            flags: HEADER_FLAGS.iter().filter(|(f, _)| flags & f != 0).map(|(_, n)| (*n).to_string()).collect(),
             uuid,
             min_os,
             code_signature,
@@ -408,7 +392,7 @@ mod tests {
 
     #[test]
     fn chained_imports_format_3_and_special_ordinals() {
-        let e = 0xfffeu64 | (0u64 << 32); // ordinal -2 (flat lookup)
+        let e = 0xfffe_u64; // ordinal -2 (flat lookup), name offset 0
         let got = parse_chained_imports(&blob(3, &[e], &["_dyn"], 0)).unwrap();
         assert_eq!(got[0].lib_ordinal, -2);
         let e8 = 0xffu64; // ordinal -1 in the 8-bit format

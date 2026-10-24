@@ -33,11 +33,7 @@ impl FuzzyDigests {
             Ok(h) => (Some(h.to_hex()), None),
             Err(e) => (None, Some(e.to_string())),
         };
-        Self {
-            ssdeep,
-            tlsh,
-            tlsh_unavailable,
-        }
+        Self { ssdeep, tlsh, tlsh_unavailable }
     }
 }
 

@@ -59,17 +59,11 @@ pub enum Error {
 impl Error {
     /// Build an [`Error::Io`] for `path`.
     pub fn io(path: impl Into<PathBuf>, source: std::io::Error) -> Self {
-        Self::Io {
-            path: path.into(),
-            source,
-        }
+        Self::Io { path: path.into(), source }
     }
 
     /// Build an [`Error::Parse`].
     pub fn parse(format: &'static str, message: impl Into<String>) -> Self {
-        Self::Parse {
-            format,
-            message: message.into(),
-        }
+        Self::Parse { format, message: message.into() }
     }
 }

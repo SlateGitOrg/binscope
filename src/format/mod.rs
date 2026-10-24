@@ -124,7 +124,7 @@ pub struct Import {
     pub library: Option<String>,
     /// Symbol name as stored (Mach-O names keep their leading underscore).
     /// Ordinal-only PE imports are named `ord<N>` (or the well-known name
-    /// for ws2_32/wsock32/oleaut32, as pefile does).
+    /// for `ws2_32`/`wsock32`/`oleaut32`, as pefile does).
     pub name: String,
     /// PE import ordinal when imported by ordinal.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -170,11 +170,7 @@ pub struct Mitigation {
 
 impl Mitigation {
     pub(crate) fn new(name: &str, enabled: bool, detail: Option<String>) -> Self {
-        Self {
-            name: name.to_string(),
-            enabled,
-            detail,
-        }
+        Self { name: name.to_string(), enabled, detail }
     }
 }
 
@@ -208,7 +204,7 @@ pub struct PeDetails {
     pub ordinal_imports: usize,
     /// Authenticode certificate table present.
     pub signed: bool,
-    /// CodeView PDB path from the debug directory, if any.
+    /// `CodeView` PDB path from the debug directory, if any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pdb_path: Option<String>,
 }
@@ -345,7 +341,7 @@ pub fn detect(data: &[u8]) -> Detected {
         [0xfe, 0xed, 0xfa, 0xce | 0xcf, ..] | [0xce | 0xcf, 0xfa, 0xed, 0xfe, ..] => Detected::Supported(Format::MachO),
         // 0xcafebabe is shared with Java class files; goblin disambiguates
         // by the slice count, so treat it as a fat Mach-O candidate.
-        [0xca, 0xfe, 0xba, 0xbe, ..] | [0xca, 0xfe, 0xba, 0xbf, ..] => Detected::Supported(Format::MachOFat),
+        [0xca, 0xfe, 0xba, 0xbe | 0xbf, ..] => Detected::Supported(Format::MachOFat),
         [b'!', b'<', b'a', b'r', b'c', b'h', b'>', b'\n', ..] => Detected::Unsupported("ar archive"),
         [b'V', b'Z', ..] => Detected::Unsupported("TE image"),
         _ => Detected::Unknown,
@@ -390,8 +386,8 @@ fn parse_inner(data: &[u8]) -> Result<Option<BinaryInfo>> {
         }
     };
     match obj {
-        Object::Elf(e) => elf::analyze(&e, data).map(Some),
-        Object::PE(p) => pe::analyze(&p, data).map(Some),
+        Object::Elf(e) => Ok(Some(elf::analyze(&e, data))),
+        Object::PE(p) => Ok(Some(pe::analyze(&p, data))),
         Object::Mach(m) => macho::analyze(m, data).map(Some),
         _ => Ok(None),
     }
@@ -425,11 +421,7 @@ pub(crate) fn overlay_after(data: &[u8], image_end: u64) -> Option<Overlay> {
         return None;
     }
     let tail = file_slice(data, image_end, len - image_end);
-    Some(Overlay {
-        offset: image_end,
-        size: len - image_end,
-        entropy: entropy::shannon(tail),
-    })
+    Some(Overlay { offset: image_end, size: len - image_end, entropy: entropy::shannon(tail) })
 }
 
 #[cfg(test)]

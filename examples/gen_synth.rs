@@ -11,9 +11,8 @@ use binscope::synth::{generate, mutate, Kind};
 
 /// Sizes chosen to straddle ssdeep block-size boundaries (3*2^k*64) and the
 /// TLSH 50-byte minimum.
-const SIZES: [usize; 16] = [
-    0, 1, 7, 49, 50, 64, 191, 192, 193, 1000, 4096, 12_289, 65_536, 200_000, 1_048_576, 3_500_000,
-];
+const SIZES: [usize; 16] =
+    [0, 1, 7, 49, 50, 64, 191, 192, 193, 1000, 4096, 12_289, 65_536, 200_000, 1_048_576, 3_500_000];
 
 fn main() -> std::io::Result<()> {
     let out = PathBuf::from(std::env::args().nth(1).expect("usage: gen_synth OUT_DIR"));

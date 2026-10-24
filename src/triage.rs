@@ -29,10 +29,7 @@ pub struct TriageOptions {
 
 impl Default for TriageOptions {
     fn default() -> Self {
-        Self {
-            strings: StringOptions::default(),
-            max_listed_strings: 60,
-        }
+        Self { strings: StringOptions::default(), max_listed_strings: 60 }
     }
 }
 
@@ -117,11 +114,7 @@ pub struct TriageReport {
 impl TriageReport {
     /// Highest severity among anomalies and capabilities.
     pub fn max_severity(&self) -> Option<crate::rules::Severity> {
-        self.anomalies
-            .iter()
-            .map(|a| a.severity)
-            .chain(self.capabilities.iter().map(|c| c.severity))
-            .max()
+        self.anomalies.iter().map(|a| a.severity).chain(self.capabilities.iter().map(|c| c.severity)).max()
     }
 }
 
@@ -130,9 +123,7 @@ fn import_hashes(info: &BinaryInfo, data: &[u8]) -> ImportHashes {
         Format::Pe => {
             // Re-walk the import directory so ordinal entries feed the hash
             // exactly as pefile sees them.
-            let imphash = goblin::pe::PE::parse(data)
-                .ok()
-                .and_then(|pe| hashes::imphash(format::pe_import_refs(&pe)));
+            let imphash = goblin::pe::PE::parse(data).ok().and_then(|pe| hashes::imphash(format::pe_import_refs(&pe)));
             ImportHashes { imphash, symhash: None }
         }
         Format::Elf | Format::MachO | Format::MachOFat => ImportHashes {
@@ -177,14 +168,8 @@ fn summarise_strings(all: &[ExtractedString], sections: &[&Section], max: usize)
     let mut order: Vec<&ExtractedString> = all.iter().filter(|s| !s.tags.is_empty()).collect();
     order.extend(all.iter().filter(|s| s.tags.is_empty()));
     summary.truncated = order.len() > max;
-    summary.listed = order
-        .into_iter()
-        .take(max)
-        .map(|s| ListedString {
-            string: s.clone(),
-            section: lookup(s.offset),
-        })
-        .collect();
+    summary.listed =
+        order.into_iter().take(max).map(|s| ListedString { string: s.clone(), section: lookup(s.offset) }).collect();
     summary
 }
 
@@ -210,10 +195,7 @@ pub fn analyze_bytes(name: &str, data: &[u8], opts: &TriageOptions, rules: &Rule
     let all_strings = strings::extract(data, &opts.strings);
     let sections: Vec<&Section> = binary.as_ref().map(BinaryInfo::all_sections).unwrap_or_default();
     let string_summary = summarise_strings(&all_strings, &sections, opts.max_listed_strings);
-    let anomalies = binary
-        .as_ref()
-        .map(|b| anomalies::detect(b, data.len() as u64, file_entropy))
-        .unwrap_or_default();
+    let anomalies = binary.as_ref().map(|b| anomalies::detect(b, data.len() as u64, file_entropy)).unwrap_or_default();
     let capabilities = rules.evaluate(&Subject::new(binary.as_ref(), &all_strings, &anomalies));
     let import_hashes = binary.as_ref().map(|b| import_hashes(b, data)).unwrap_or_default();
 

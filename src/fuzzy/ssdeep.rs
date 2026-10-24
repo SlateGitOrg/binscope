@@ -88,13 +88,7 @@ struct BlockHash {
 
 impl BlockHash {
     const fn new() -> Self {
-        Self {
-            h: HASH_INIT_6,
-            halfh: HASH_INIT_6,
-            digest: [0; SPAMSUM_LENGTH],
-            halfdigest: 0,
-            dindex: 0,
-        }
+        Self { h: HASH_INIT_6, halfh: HASH_INIT_6, digest: [0; SPAMSUM_LENGTH], halfdigest: 0, dindex: 0 }
     }
 }
 
@@ -341,7 +335,10 @@ impl FromStr for SsdeepHash {
         let rest = it.next().ok_or_else(|| bad("missing second part"))?;
         let p2 = rest.split(',').next().unwrap_or("");
         let block_size: u64 = bs.trim().parse().map_err(|_| bad("block size is not a number"))?;
-        if block_size < MIN_BLOCKSIZE || block_size % MIN_BLOCKSIZE != 0 || !(block_size / MIN_BLOCKSIZE).is_power_of_two() {
+        if block_size < MIN_BLOCKSIZE
+            || block_size % MIN_BLOCKSIZE != 0
+            || !(block_size / MIN_BLOCKSIZE).is_power_of_two()
+        {
             return Err(bad("block size must be 3 * 2^k"));
         }
         for part in [p1, p2] {
@@ -352,11 +349,7 @@ impl FromStr for SsdeepHash {
                 return Err(bad("part contains non-base64 characters"));
             }
         }
-        Ok(Self {
-            block_size,
-            part1: p1.to_string(),
-            part2: p2.to_string(),
-        })
+        Ok(Self { block_size, part1: p1.to_string(), part2: p2.to_string() })
     }
 }
 
@@ -379,8 +372,7 @@ pub fn has_common_substring(a: &[u8], b: &[u8]) -> bool {
     if a.len() < ROLLING_WINDOW || b.len() < ROLLING_WINDOW {
         return false;
     }
-    a.windows(ROLLING_WINDOW)
-        .any(|wa| b.windows(ROLLING_WINDOW).any(|wb| wa == wb))
+    a.windows(ROLLING_WINDOW).any(|wa| b.windows(ROLLING_WINDOW).any(|wb| wa == wb))
 }
 
 /// Weighted edit distance used by ssdeep: insert 1, delete 1, replace 2.

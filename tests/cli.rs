@@ -12,11 +12,7 @@ fn fixture(rel: &str) -> String {
 }
 
 fn run(args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_binscope"))
-        .args(args)
-        .env("NO_COLOR", "1")
-        .output()
-        .expect("binscope runs")
+    Command::new(env!("CARGO_BIN_EXE_binscope")).args(args).env("NO_COLOR", "1").output().expect("binscope runs")
 }
 
 fn stdout(o: &Output) -> String {
@@ -32,7 +28,9 @@ fn triage_human_output() {
     let o = run(&["triage", &fixture("pe-x86_64/net-v0.exe")]);
     assert!(o.status.success(), "{}", stderr(&o));
     let out = stdout(&o);
-    for want in ["imphash", "Sections (2)", "ws2_32.dll", "connect (#4)", "connect to a network endpoint", "Mitigations:"] {
+    for want in
+        ["imphash", "Sections (2)", "ws2_32.dll", "connect (#4)", "connect to a network endpoint", "Mitigations:"]
+    {
         assert!(out.contains(want), "missing {want:?} in\n{out}");
     }
     assert!(!out.contains("\x1b["), "NO_COLOR must disable ANSI");
@@ -51,7 +49,12 @@ fn triage_json_single_and_many() {
     assert_eq!(v["binary"]["format"], "macho");
     assert_eq!(v["binary"]["macho"]["chained_fixups"], true);
 
-    let o = run(&["triage", "--json", &repo().join("fixtures/bin/macho-universal").display().to_string(), &fixture("pe-i686/files-v2.exe")]);
+    let o = run(&[
+        "triage",
+        "--json",
+        &repo().join("fixtures/bin/macho-universal").display().to_string(),
+        &fixture("pe-i686/files-v2.exe"),
+    ]);
     let v: serde_json::Value = serde_json::from_str(&stdout(&o)).unwrap();
     assert_eq!(v.as_array().unwrap().len(), 2);
     assert_eq!(v[0]["binary"]["format"], "macho-fat");
@@ -102,7 +105,8 @@ fn extra_rules_and_no_builtin() {
     let o = run(&["rules", "list", "--rules", &r]);
     assert!(stdout(&o).contains("35 rules"));
 
-    std::fs::write(dir.join("bad.yaml"), "rules:\n  - id: x\n    name: n\n    namespace: y\n    match: {import: ''}\n").unwrap();
+    std::fs::write(dir.join("bad.yaml"), "rules:\n  - id: x\n    name: n\n    namespace: y\n    match: {import: ''}\n")
+        .unwrap();
     let o = run(&["rules", "check", &dir.display().to_string()]);
     assert_eq!(o.status.code(), Some(1));
     assert!(stderr(&o).contains("bad.yaml"), "{}", stderr(&o));

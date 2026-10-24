@@ -151,10 +151,8 @@ fn elf_and_macho_sections_match_llvm_readobj() {
     assert_eq!(by_file.len(), 80, "40 ELF + 40 single-arch Mach-O fixtures");
     for (name, expected) in &by_file {
         let ours = parse_native(name).sections;
-        let got: Vec<(String, u64, u64, u64)> = ours
-            .iter()
-            .map(|s| (s.name.clone(), s.file_offset, s.file_size, s.virtual_address))
-            .collect();
+        let got: Vec<(String, u64, u64, u64)> =
+            ours.iter().map(|s| (s.name.clone(), s.file_offset, s.file_size, s.virtual_address)).collect();
         let want: Vec<(String, u64, u64, u64)> = expected
             .iter()
             .map(|r| (r[1].clone(), r[2].parse().unwrap(), r[3].parse().unwrap(), r[4].parse().unwrap()))

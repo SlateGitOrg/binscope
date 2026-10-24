@@ -46,11 +46,7 @@ pub struct Anomaly {
 
 fn push(out: &mut Vec<Anomaly>, id: &str, severity: Severity, message: String) {
     debug_assert!(ANOMALY_IDS.contains(&id), "unregistered anomaly id {id}");
-    out.push(Anomaly {
-        id: id.to_string(),
-        severity,
-        message,
-    });
+    out.push(Anomaly { id: id.to_string(), severity, message });
 }
 
 const KNOWN_PE_SECTIONS: [&str; 20] = [
@@ -158,10 +154,7 @@ fn detect_image(info: &BinaryInfo, file_len: u64, out: &mut Vec<Anomaly>) {
             out,
             "overlay",
             severity,
-            format!(
-                "{} bytes appended after the image at {:#x} (entropy {:.2})",
-                o.size, o.offset, o.entropy
-            ),
+            format!("{} bytes appended after the image at {:#x} (entropy {:.2})", o.size, o.offset, o.entropy),
         );
     }
     if info.imports.is_empty()
@@ -193,6 +186,7 @@ mod tests {
     use super::*;
     use crate::format::{Overlay, PeDetails, Section};
 
+    #[allow(clippy::too_many_arguments)] // test fixture builder
     fn section(name: &str, entropy: f64, w: bool, x: bool, off: u64, size: u64, va: u64, vsize: u64) -> Section {
         Section {
             name: name.into(),
@@ -243,11 +237,7 @@ mod tests {
             ],
             Some(0x9100),
         );
-        i.overlay = Some(Overlay {
-            offset: 0x3400,
-            size: 100,
-            entropy: 7.5,
-        });
+        i.overlay = Some(Overlay { offset: 0x3400, size: 100, entropy: 7.5 });
         i.pe = Some(PeDetails {
             machine: 0x8664,
             timestamp: 0,
@@ -284,17 +274,9 @@ mod tests {
 
     #[test]
     fn clean_image_has_no_anomalies() {
-        let mut i = info(
-            Format::Elf,
-            vec![section(".text", 6.0, false, true, 0x100, 0x400, 0x1100, 0x400)],
-            Some(0x1100),
-        );
-        i.imports.push(crate::format::Import {
-            library: None,
-            name: "puts".into(),
-            ordinal: None,
-            weak: false,
-        });
+        let mut i =
+            info(Format::Elf, vec![section(".text", 6.0, false, true, 0x100, 0x400, 0x1100, 0x400)], Some(0x1100));
+        i.imports.push(crate::format::Import { library: None, name: "puts".into(), ordinal: None, weak: false });
         assert!(detect(&i, 0x1000, 5.0).is_empty());
     }
 
@@ -302,7 +284,8 @@ mod tests {
     fn entry_outside_sections_and_slice_recursion() {
         let mut fat = info(Format::MachOFat, Vec::new(), None);
         fat.arch = "universal".into();
-        let mut slice = info(Format::MachO, vec![section("__TEXT,__text", 5.0, false, true, 0, 16, 0x1000, 16)], Some(0x5000));
+        let mut slice =
+            info(Format::MachO, vec![section("__TEXT,__text", 5.0, false, true, 0, 16, 0x1000, 16)], Some(0x5000));
         slice.arch = "aarch64".into();
         fat.slices.push(slice);
         let found = detect(&fat, 100, 3.0);

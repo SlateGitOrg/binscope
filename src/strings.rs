@@ -103,11 +103,7 @@ pub struct StringOptions {
 
 impl Default for StringOptions {
     fn default() -> Self {
-        Self {
-            min_len: 4,
-            max_len: 512,
-            utf16: true,
-        }
+        Self { min_len: 4, max_len: 512, utf16: true }
     }
 }
 
@@ -122,13 +118,7 @@ fn make(offset: usize, encoding: Encoding, chars: &[u8], max_len: usize) -> Extr
     // Every byte is printable ASCII, so this conversion is lossless.
     let value: String = kept.iter().map(|&b| char::from(b)).collect();
     let tags = tag(&value);
-    ExtractedString {
-        offset: offset as u64,
-        encoding,
-        value,
-        length,
-        tags,
-    }
+    ExtractedString { offset: offset as u64, encoding, value, length, tags }
 }
 
 /// Extract ASCII runs of at least `opts.min_len` printable characters.
@@ -222,11 +212,7 @@ fn tag_set() -> &'static RegexSet {
 
 /// Return the tags that match `value`, in [`StringTag::ALL`] order.
 pub fn tag(value: &str) -> Vec<StringTag> {
-    tag_set()
-        .matches(value)
-        .into_iter()
-        .map(|i| StringTag::ALL[i])
-        .collect()
+    tag_set().matches(value).into_iter().map(|i| StringTag::ALL[i]).collect()
 }
 
 #[cfg(test)]
@@ -234,10 +220,7 @@ mod tests {
     use super::*;
 
     fn opts(min: usize) -> StringOptions {
-        StringOptions {
-            min_len: min,
-            ..StringOptions::default()
-        }
+        StringOptions { min_len: min, ..StringOptions::default() }
     }
 
     #[test]
@@ -277,11 +260,7 @@ mod tests {
     #[test]
     fn truncation_keeps_length() {
         let data = vec![b'A'; 100];
-        let o = StringOptions {
-            min_len: 4,
-            max_len: 10,
-            utf16: false,
-        };
+        let o = StringOptions { min_len: 4, max_len: 10, utf16: false };
         let s = extract(&data, &o);
         assert_eq!(s[0].value.len(), 10);
         assert_eq!(s[0].length, 100);

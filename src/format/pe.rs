@@ -7,7 +7,6 @@ use goblin::pe::PE;
 use super::{
     overlay_after, section_entropy, BinaryInfo, BinaryKind, Export, Format, Import, Mitigation, PeDetails, Section,
 };
-use crate::error::Result;
 use crate::hashes::ImportRef;
 
 const IMAGE_FILE_DLL: u16 = 0x2000;
@@ -68,7 +67,7 @@ pub fn import_refs<'a>(pe: &'a PE<'a>) -> Vec<(&'a str, ImportRef<'a>)> {
     out
 }
 
-pub(super) fn analyze(pe: &PE<'_>, data: &[u8]) -> Result<BinaryInfo> {
+pub(super) fn analyze(pe: &PE<'_>, data: &[u8]) -> BinaryInfo {
     let coff = &pe.header.coff_header;
     let opt = pe.header.optional_header.as_ref();
     let image_base = pe.image_base;
@@ -118,22 +117,14 @@ pub(super) fn analyze(pe: &PE<'_>, data: &[u8]) -> Result<BinaryInfo> {
     let imports = refs
         .iter()
         .map(|(dll, r)| match r {
-            ImportRef::Name(n) => Import {
-                library: Some((*dll).to_string()),
-                name: (*n).to_string(),
-                ordinal: None,
-                weak: false,
-            },
+            ImportRef::Name(n) => {
+                Import { library: Some((*dll).to_string()), name: (*n).to_string(), ordinal: None, weak: false }
+            }
             ImportRef::Ordinal(o) => {
                 // Same name pefile would use for this ordinal.
                 let token = crate::hashes::imphash_input([(*dll, ImportRef::Ordinal(*o))]);
                 let name = token.rsplit_once('.').map_or(token.as_str(), |(_, f)| f).to_string();
-                Import {
-                    library: Some((*dll).to_string()),
-                    name,
-                    ordinal: Some(*o),
-                    weak: false,
-                }
+                Import { library: Some((*dll).to_string()), name, ordinal: Some(*o), weak: false }
             }
         })
         .collect();
@@ -178,10 +169,7 @@ pub(super) fn analyze(pe: &PE<'_>, data: &[u8]) -> Result<BinaryInfo> {
         image_base,
         subsystem: opt.map_or("other", |h| subsystem_name(h.windows_fields.subsystem)).to_string(),
         linker_version: opt.map_or_else(String::new, |h| {
-            format!(
-                "{}.{}",
-                h.standard_fields.major_linker_version, h.standard_fields.minor_linker_version
-            )
+            format!("{}.{}", h.standard_fields.major_linker_version, h.standard_fields.minor_linker_version)
         }),
         dll_characteristics: DLL_CHARACTERISTICS
             .iter()
@@ -193,7 +181,7 @@ pub(super) fn analyze(pe: &PE<'_>, data: &[u8]) -> Result<BinaryInfo> {
         pdb_path,
     };
 
-    Ok(BinaryInfo {
+    BinaryInfo {
         format: Format::Pe,
         arch: machine_name(coff.machine).to_string(),
         bits: if pe.is_64 { 64 } else { 32 },
@@ -214,7 +202,7 @@ pub(super) fn analyze(pe: &PE<'_>, data: &[u8]) -> Result<BinaryInfo> {
         elf: None,
         macho: None,
         slices: Vec::new(),
-    })
+    }
 }
 
 #[cfg(test)]

@@ -56,11 +56,7 @@ impl<'a> Subject<'a> {
                     Some(l) => format!("{l}!{}", imp.name),
                     None => imp.name.clone(),
                 };
-                s.imports.push(SubjectImport {
-                    library_stem: imp.library.as_deref().map(library_stem),
-                    name,
-                    display,
-                });
+                s.imports.push(SubjectImport { library_stem: imp.library.as_deref().map(library_stem), name, display });
             }
             let mut libs: Vec<&String> = info.libraries.iter().collect();
             for slice in &info.slices {
@@ -123,24 +119,14 @@ fn leaf_hits(expr: &Expr, sub: &Subject<'_>) -> Vec<String> {
             .iter()
             .filter(|i| {
                 name.matches(&i.name)
-                    && library
-                        .as_ref()
-                        .is_none_or(|l| i.library_stem.as_deref().is_some_and(|s| l.matches(s)))
+                    && library.as_ref().is_none_or(|l| i.library_stem.as_deref().is_some_and(|s| l.matches(s)))
             })
             .map(|i| format!("import {}", i.display))
             .collect(),
-        Expr::Library(p) => sub
-            .libraries
-            .iter()
-            .filter(|(stem, _)| p.matches(stem))
-            .map(|(_, l)| format!("library {l}"))
-            .collect(),
-        Expr::Export(p) => sub
-            .exports
-            .iter()
-            .filter(|e| p.matches(e))
-            .map(|e| format!("export {e}"))
-            .collect(),
+        Expr::Library(p) => {
+            sub.libraries.iter().filter(|(stem, _)| p.matches(stem)).map(|(_, l)| format!("library {l}")).collect()
+        }
+        Expr::Export(p) => sub.exports.iter().filter(|e| p.matches(e)).map(|e| format!("export {e}")).collect(),
         Expr::Substring(needle) => sub
             .lower_strings
             .iter()
@@ -166,12 +152,7 @@ fn leaf_hits(expr: &Expr, sub: &Subject<'_>) -> Vec<String> {
             .filter(|s| section_matches(t, s))
             .map(|s| format!("section {} ({}, {} bytes, entropy {:.2})", s.name, s.perms(), s.file_size, s.entropy))
             .collect(),
-        Expr::Anomaly(id) => sub
-            .anomalies
-            .iter()
-            .filter(|a| *a == id)
-            .map(|a| format!("anomaly {a}"))
-            .collect(),
+        Expr::Anomaly(id) => sub.anomalies.iter().filter(|a| *a == id).map(|a| format!("anomaly {a}")).collect(),
         Expr::Format(f) => {
             let ok = match (f, sub.format) {
                 (Format::MachO, Some(Format::MachO | Format::MachOFat)) => true,
@@ -234,9 +215,7 @@ fn eval(expr: &Expr, sub: &Subject<'_>) -> Option<Vec<String>> {
 fn applies(rule: &Rule, sub: &Subject<'_>) -> bool {
     rule.formats.is_empty()
         || sub.format.is_some_and(|have| {
-            rule.formats
-                .iter()
-                .any(|f| *f == have || (*f == Format::MachO && have == Format::MachOFat))
+            rule.formats.iter().any(|f| *f == have || (*f == Format::MachO && have == Format::MachOFat))
         })
 }
 
@@ -259,7 +238,9 @@ pub(super) fn evaluate(rules: &[Rule], sub: &Subject<'_>) -> Vec<CapabilityMatch
             })
         })
         .collect();
-    out.sort_by(|a, b| b.severity.cmp(&a.severity).then_with(|| a.namespace.cmp(&b.namespace)).then_with(|| a.id.cmp(&b.id)));
+    out.sort_by(|a, b| {
+        b.severity.cmp(&a.severity).then_with(|| a.namespace.cmp(&b.namespace)).then_with(|| a.id.cmp(&b.id))
+    });
     out
 }
 
@@ -299,11 +280,7 @@ mod tests {
                     weak: false,
                 })
                 .collect(),
-            exports: vec![Export {
-                name: "ServiceMain".into(),
-                address: 0x1000,
-                forwarded_to: None,
-            }],
+            exports: vec![Export { name: "ServiceMain".into(), address: 0x1000, forwarded_to: None }],
             libraries: imports.iter().filter(|(l, _)| !l.is_empty()).map(|(l, _)| (*l).to_string()).collect(),
             mitigations: Vec::new(),
             overlay: None,
@@ -315,16 +292,15 @@ mod tests {
     }
 
     fn string(value: &str, tags: Vec<StringTag>) -> ExtractedString {
-        ExtractedString {
-            offset: 0x40,
-            encoding: Encoding::Ascii,
-            value: value.into(),
-            length: value.len(),
-            tags,
-        }
+        ExtractedString { offset: 0x40, encoding: Encoding::Ascii, value: value.into(), length: value.len(), tags }
     }
 
-    fn run(yaml: &str, info: Option<&BinaryInfo>, strings: &[ExtractedString], anomalies: &[Anomaly]) -> Vec<CapabilityMatch> {
+    fn run(
+        yaml: &str,
+        info: Option<&BinaryInfo>,
+        strings: &[ExtractedString],
+        anomalies: &[Anomaly],
+    ) -> Vec<CapabilityMatch> {
         let set = RuleSet::from_yaml("t", yaml).unwrap();
         set.evaluate(&Subject::new(info, strings, anomalies))
     }
@@ -401,15 +377,9 @@ rules:
     #[test]
     fn strings_sections_exports_anomalies() {
         let bin = info(Format::Elf, &[]);
-        let strings = vec![
-            string("GET http://example.test/x", vec![StringTag::Url]),
-            string("User-Agent: probe", vec![]),
-        ];
-        let anomalies = vec![Anomaly {
-            id: "overlay".into(),
-            severity: Severity::Low,
-            message: String::new(),
-        }];
+        let strings =
+            vec![string("GET http://example.test/x", vec![StringTag::Url]), string("User-Agent: probe", vec![])];
+        let anomalies = vec![Anomaly { id: "overlay".into(), severity: Severity::Low, message: String::new() }];
         let yaml = r"
 rules:
   - id: s1

@@ -250,10 +250,7 @@ fn compile_expr(def: ExprDef, depth: usize) -> Result<Expr, String> {
                 library: Some(NamePattern::compile(&library_stem(lib))?),
                 name: NamePattern::compile(name)?,
             },
-            None => Expr::Import {
-                library: None,
-                name: NamePattern::compile(&p)?,
-            },
+            None => Expr::Import { library: None, name: NamePattern::compile(&p)? },
         },
         ExprDef::Library(p) => Expr::Library(NamePattern::compile(&library_stem(&p))?),
         ExprDef::Export(p) => Expr::Export(NamePattern::compile(&p)?),
@@ -304,9 +301,7 @@ fn compile_expr(def: ExprDef, depth: usize) -> Result<Expr, String> {
 
 fn valid_id(id: &str) -> bool {
     !id.is_empty()
-        && id
-            .chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '-' | '_' | '/'))
+        && id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '-' | '_' | '/'))
 }
 
 /// An ordered collection of compiled rules.
@@ -342,10 +337,7 @@ impl RuleSet {
 
     /// Parse and validate one YAML document.
     pub fn from_yaml(origin: &str, text: &str) -> Result<Self> {
-        let err = |message: String| Error::Rule {
-            origin: origin.to_string(),
-            message,
-        };
+        let err = |message: String| Error::Rule { origin: origin.to_string(), message };
         let file: RuleFile = serde_norway::from_str(text).map_err(|e| err(e.to_string()))?;
         let mut rules = Vec::with_capacity(file.rules.len());
         let mut seen = HashSet::new();
