@@ -17,6 +17,7 @@
 //! binscope never executes, emulates or modifies its inputs.
 
 pub mod anomalies;
+pub mod cluster;
 pub mod entropy;
 pub mod error;
 pub mod format;

@@ -140,6 +140,19 @@ pub fn mutate(data: &[u8], per_mille: u32, seed: u64) -> Vec<u8> {
     out
 }
 
+/// Copy of `data` with one contiguous run of `len` bytes at `offset`
+/// replaced by random bytes: a *localised* edit, like a rebuilt function.
+pub fn patch(data: &[u8], offset: usize, len: usize, seed: u64) -> Vec<u8> {
+    let mut rng = Rng::new(seed ^ 0x5EED);
+    let mut out = data.to_vec();
+    let start = offset.min(out.len());
+    let end = offset.saturating_add(len).min(out.len());
+    for b in &mut out[start..end] {
+        *b = rng.next_u64() as u8;
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -170,5 +183,15 @@ mod tests {
         assert_ne!(m, base);
         assert!(m.len() >= base.len());
         assert!(mutate(&[], 10, 1).is_empty());
+    }
+
+    #[test]
+    fn patch_is_localised() {
+        let base = generate(Kind::Text, 1000, 3);
+        let p = patch(&base, 100, 50, 1);
+        assert_eq!(p[..100], base[..100]);
+        assert_eq!(p[150..], base[150..]);
+        assert_ne!(p[100..150], base[100..150]);
+        assert_eq!(patch(&base, 5000, 10, 1), base);
     }
 }
