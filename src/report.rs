@@ -47,6 +47,24 @@ impl Style {
     }
 }
 
+/// Neutralise control characters (ANSI escapes, carriage returns, ...) in
+/// text that came from the sample, so a hostile file cannot rewrite the
+/// analyst's terminal. JSON output needs no such step: serde escapes them.
+pub fn clean(text: &str) -> std::borrow::Cow<'_, str> {
+    if !text.chars().any(char::is_control) {
+        return std::borrow::Cow::Borrowed(text);
+    }
+    let mut out = String::with_capacity(text.len() + 8);
+    for c in text.chars() {
+        if c.is_control() {
+            let _ = write!(out, "\\u{{{:x}}}", u32::from(c));
+        } else {
+            out.push(c);
+        }
+    }
+    std::borrow::Cow::Owned(out)
+}
+
 /// Ten-cell entropy bar (`#` per 0.8 bits).
 pub fn entropy_bar(e: f64) -> String {
     let filled = ((e / 8.0) * 10.0).round().clamp(0.0, 10.0) as usize;
@@ -93,7 +111,7 @@ fn render_image(out: &mut String, b: &BinaryInfo, style: Style, indent: &str) {
     }
     if !b.sections.is_empty() {
         let _ = writeln!(out, "\n{indent}{}", style.bold(&format!("Sections ({})", b.sections.len())));
-        let width = b.sections.iter().map(|s| s.name.len()).max().unwrap_or(4).clamp(4, 28);
+        let width = b.sections.iter().map(|s| clean(&s.name).len()).max().unwrap_or(4).clamp(4, 28);
         let _ = writeln!(
             out,
             "{indent}  {}",
@@ -106,7 +124,7 @@ fn render_image(out: &mut String, b: &BinaryInfo, style: Style, indent: &str) {
             let _ = writeln!(
                 out,
                 "{indent}  {:<width$} {:>#10x} {:>8} {:>#18x} {:<4} {:>7.3} {} {}",
-                s.name,
+                clean(&s.name),
                 s.file_offset,
                 s.file_size,
                 s.virtual_address,
@@ -120,10 +138,10 @@ fn render_image(out: &mut String, b: &BinaryInfo, style: Style, indent: &str) {
     if !b.imports.is_empty() {
         let mut libs: Vec<(String, Vec<String>)> = Vec::new();
         for i in &b.imports {
-            let lib = i.library.clone().unwrap_or_else(|| "(unattributed)".into());
+            let lib = i.library.as_deref().map_or_else(|| "(unattributed)".into(), |l| clean(l).into_owned());
             let name = match i.ordinal {
-                Some(o) => format!("{} (#{o})", i.name),
-                None => i.name.clone(),
+                Some(o) => format!("{} (#{o})", clean(&i.name)),
+                None => clean(&i.name).into_owned(),
             };
             match libs.iter_mut().find(|(l, _)| *l == lib) {
                 Some((_, v)) => v.push(name),
@@ -139,7 +157,7 @@ fn render_image(out: &mut String, b: &BinaryInfo, style: Style, indent: &str) {
             let _ = writeln!(out, "{indent}  {lib}: {}", names.join(", "));
         }
     } else if !b.libraries.is_empty() && b.slices.is_empty() {
-        let _ = writeln!(out, "\n{indent}{} {}", style.bold("Libraries:"), b.libraries.join(", "));
+        let _ = writeln!(out, "\n{indent}{} {}", style.bold("Libraries:"), clean(&b.libraries.join(", ")));
     }
     if !b.exports.is_empty() {
         let shown: Vec<&str> = b.exports.iter().take(20).map(|e| e.name.as_str()).collect();
@@ -148,7 +166,7 @@ fn render_image(out: &mut String, b: &BinaryInfo, style: Style, indent: &str) {
             out,
             "\n{indent}{} {}{}",
             style.bold(&format!("Exports ({}):", b.exports.len())),
-            shown.join(", "),
+            clean(&shown.join(", ")),
             if more > 0 { format!(" (+{more} more)") } else { String::new() }
         );
     }
@@ -176,7 +194,7 @@ fn render_image(out: &mut String, b: &BinaryInfo, style: Style, indent: &str) {
 /// Human-readable triage report.
 pub fn render_triage(r: &TriageReport, style: Style) -> String {
     let mut out = String::new();
-    let _ = writeln!(out, "{}", style.bold(&format!("== {} ==", r.file.name)));
+    let _ = writeln!(out, "{}", style.bold(&format!("== {} ==", clean(&r.file.name))));
     kv(
         &mut out,
         style,
@@ -204,7 +222,7 @@ pub fn render_triage(r: &TriageReport, style: Style) -> String {
 
     let _ = writeln!(out, "\n{}", style.bold(&format!("Anomalies ({})", r.anomalies.len())));
     for a in &r.anomalies {
-        let _ = writeln!(out, "  {} {:<36} {}", style.severity(a.severity), a.id, a.message);
+        let _ = writeln!(out, "  {} {:<36} {}", style.severity(a.severity), a.id, clean(&a.message));
     }
     let _ = writeln!(out, "\n{}", style.bold(&format!("Capabilities ({})", r.capabilities.len())));
     for c in &r.capabilities {
@@ -217,7 +235,7 @@ pub fn render_triage(r: &TriageReport, style: Style) -> String {
             style.dim(&format!("({})", c.namespace)),
             attack
         );
-        let _ = writeln!(out, "           {}", style.dim(&c.evidence.join("; ")));
+        let _ = writeln!(out, "           {}", style.dim(&clean(&c.evidence.join("; "))));
     }
 
     let s = &r.strings;
@@ -313,22 +331,22 @@ pub fn render_clustering(c: &Clustering, style: Style) -> String {
             "\n{} ({} members, medoid {})",
             style.bold(&format!("cluster {}", i + 1)),
             cl.members.len(),
-            c.names[cl.medoid]
+            clean(&c.names[cl.medoid])
         );
         for &m in &cl.members {
-            let _ = writeln!(out, "  {}{}", if m == cl.medoid { "* " } else { "  " }, c.names[m]);
+            let _ = writeln!(out, "  {}{}", if m == cl.medoid { "* " } else { "  " }, clean(&c.names[m]));
         }
     }
     if !c.singletons.is_empty() {
         let _ = writeln!(out, "\n{}", style.bold("singletons"));
         for &s in &c.singletons {
-            let _ = writeln!(out, "    {}", c.names[s]);
+            let _ = writeln!(out, "    {}", clean(&c.names[s]));
         }
     }
     if !c.unhashable.is_empty() {
         let _ = writeln!(out, "\n{}", style.bold("no digest"));
         for &s in &c.unhashable {
-            let _ = writeln!(out, "    {}", c.names[s]);
+            let _ = writeln!(out, "    {}", clean(&c.names[s]));
         }
     }
     out
@@ -350,6 +368,13 @@ mod tests {
         for s in [Severity::High, Severity::Medium, Severity::Low, Severity::Info] {
             assert!(color.severity(s).contains(&s.to_string()));
         }
+    }
+
+    #[test]
+    fn control_characters_are_neutralised() {
+        assert_eq!(clean(".text"), ".text");
+        assert_eq!(clean("\u{1b}[31mred\r"), "\\u{1b}[31mred\\u{d}");
+        assert!(matches!(clean("plain"), std::borrow::Cow::Borrowed(_)));
     }
 
     #[test]
