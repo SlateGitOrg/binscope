@@ -27,8 +27,10 @@ pub enum Format {
     /// Portable Executable (PE32 / PE32+).
     Pe,
     /// Single-architecture Mach-O.
+    #[serde(rename = "macho")]
     MachO,
     /// Universal ("fat") Mach-O holding several architecture slices.
+    #[serde(rename = "macho-fat")]
     MachOFat,
 }
 
