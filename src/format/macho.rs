@@ -205,20 +205,6 @@ fn imports(m: &MachO<'_>, data: &[u8], base: u64) -> (Vec<Import>, bool) {
     (symtab_imports(m), false)
 }
 
-fn entry_va(m: &MachO<'_>) -> Option<u64> {
-    if m.entry == 0 {
-        return None;
-    }
-    if m.old_style_entry {
-        return Some(m.entry);
-    }
-    // LC_MAIN stores a file offset; translate through the segment map.
-    m.segments
-        .iter()
-        .find(|s| m.entry >= s.fileoff && m.entry < s.fileoff + s.filesize)
-        .map(|s| s.vmaddr + (m.entry - s.fileoff))
-}
-
 fn analyze_single(m: &MachO<'_>, data: &[u8], base: u64) -> Result<BinaryInfo> {
     let mut sections = Vec::new();
     let mut image_end = base;
@@ -298,7 +284,8 @@ fn analyze_single(m: &MachO<'_>, data: &[u8], base: u64) -> Result<BinaryInfo> {
         bits: if m.is_64 { 64 } else { 32 },
         endian: if m.little_endian { "little" } else { "big" }.into(),
         kind,
-        entry_point: entry_va(m),
+        // goblin already maps LC_MAIN's file offset through __TEXT to a VA.
+        entry_point: (m.entry != 0).then_some(m.entry),
         sections,
         imports,
         exports,

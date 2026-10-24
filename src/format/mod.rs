@@ -356,6 +356,27 @@ pub fn detect(data: &[u8]) -> Detected {
 /// caller can still hash and string-scan them) and `Err` when the container
 /// is recognised but malformed.
 pub fn parse(data: &[u8]) -> Result<Option<BinaryInfo>> {
+    // Triage inputs are hostile by definition. A panic inside the parser on a
+    // malformed file must become a parse error for that file, not take down
+    // a whole batch run.
+    match std::panic::catch_unwind(|| parse_inner(data)) {
+        Ok(r) => r,
+        Err(panic) => {
+            let msg = panic
+                .downcast_ref::<&str>()
+                .map(|s| (*s).to_string())
+                .or_else(|| panic.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "parser panicked".into());
+            let label = match detect(data) {
+                Detected::Supported(f) => format_label(f),
+                _ => "binary",
+            };
+            Err(Error::parse(label, format!("parser panic: {msg}")))
+        }
+    }
+}
+
+fn parse_inner(data: &[u8]) -> Result<Option<BinaryInfo>> {
     use goblin::Object;
     let obj = match Object::parse(data) {
         Ok(o) => o,

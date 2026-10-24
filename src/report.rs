@@ -67,15 +67,26 @@ fn kv(out: &mut String, style: Style, key: &str, value: &str) {
 }
 
 fn render_image(out: &mut String, b: &BinaryInfo, style: Style, indent: &str) {
-    let _ = writeln!(
-        out,
-        "{indent}{} {}  {}-bit {}-endian {:?}",
-        style.bold(format_name(b.format)),
-        b.arch,
-        b.bits,
-        b.endian,
-        b.kind
-    );
+    if b.format == Format::MachOFat {
+        let arches: Vec<&str> = b.slices.iter().map(|s| s.arch.as_str()).collect();
+        let _ = writeln!(
+            out,
+            "{indent}{} with {} slices: {}",
+            style.bold(format_name(b.format)),
+            b.slices.len(),
+            arches.join(", ")
+        );
+    } else {
+        let _ = writeln!(
+            out,
+            "{indent}{} {}  {}-bit {}-endian {}",
+            style.bold(format_name(b.format)),
+            b.arch,
+            b.bits,
+            b.endian,
+            format!("{:?}", b.kind).to_lowercase()
+        );
+    }
     if let Some(e) = b.entry_point {
         let sec = b.section_at_va(e).map_or("no section", |s| s.name.as_str());
         let _ = writeln!(out, "{indent}  entry {e:#x} ({sec})");
@@ -127,7 +138,7 @@ fn render_image(out: &mut String, b: &BinaryInfo, style: Style, indent: &str) {
         for (lib, names) in libs {
             let _ = writeln!(out, "{indent}  {lib}: {}", names.join(", "));
         }
-    } else if !b.libraries.is_empty() {
+    } else if !b.libraries.is_empty() && b.slices.is_empty() {
         let _ = writeln!(out, "\n{indent}{} {}", style.bold("Libraries:"), b.libraries.join(", "));
     }
     if !b.exports.is_empty() {
