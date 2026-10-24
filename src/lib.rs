@@ -25,6 +25,8 @@ pub mod hashes;
 pub mod rules;
 pub mod strings;
 pub mod synth;
+pub mod triage;
 
 pub use error::{Error, Result};
 
+pub use triage::{analyze_bytes, analyze_path, TriageOptions, TriageReport};
