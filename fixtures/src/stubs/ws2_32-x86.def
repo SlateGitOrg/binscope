@@ -1,0 +1,10 @@
+; i686 variant of ws2_32.def (stdcall-decorated, same ordinals).
+LIBRARY ws2_32.dll
+EXPORTS
+  _connect@12 @4 NONAME
+  _htons@4 @9 NONAME
+  _send@16 @19 NONAME
+  _socket@12 @23 NONAME
+  _closesocket@4 @3 EXPORTAS closesocket
+  _WSAStartup@8 @115 EXPORTAS WSAStartup
+  _WSACleanup@0 @116 EXPORTAS WSACleanup

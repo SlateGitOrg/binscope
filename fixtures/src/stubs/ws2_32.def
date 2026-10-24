@@ -1,0 +1,11 @@
+LIBRARY ws2_32.dll
+EXPORTS
+  ; connect/socket/htons are imported by ordinal on purpose, so binscope's
+  ; imphash ordinal-to-name mapping (as in pefile's ordlookup) is exercised.
+  connect @4 NONAME
+  htons @9 NONAME
+  send @19 NONAME
+  socket @23 NONAME
+  closesocket @3
+  WSAStartup @115
+  WSACleanup @116

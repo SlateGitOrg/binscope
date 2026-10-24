@@ -1,0 +1,13 @@
+; i686 variant of kernel32.def: stdcall-decorated symbols so the 32-bit objects
+; link; EXPORTAS makes the import table carry the plain API name.
+LIBRARY kernel32.dll
+EXPORTS
+  _GetStdHandle@4 EXPORTAS GetStdHandle
+  _WriteFile@20 EXPORTAS WriteFile
+  _ReadFile@20 EXPORTAS ReadFile
+  _WriteConsoleW@20 EXPORTAS WriteConsoleW
+  _CreateFileW@28 EXPORTAS CreateFileW
+  _CloseHandle@4 EXPORTAS CloseHandle
+  _DeleteFileW@4 EXPORTAS DeleteFileW
+  _GetTempPathW@8 EXPORTAS GetTempPathW
+  _ExitProcess@4 EXPORTAS ExitProcess

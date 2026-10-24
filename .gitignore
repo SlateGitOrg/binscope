@@ -1,0 +1,9 @@
+/target
+**/*.rs.bk
+*.profraw
+*.profdata
+/lcov.info
+/coverage/
+.DS_Store
+__pycache__/
+/.venv/
