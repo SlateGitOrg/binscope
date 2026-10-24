@@ -1,0 +1,57 @@
+[package]
+name = "binscope"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "MIT"
+description = "Static triage for ELF, Mach-O and PE binaries: sections, entropy, imports, imphash, strings, ssdeep/TLSH fuzzy hashing, YAML capability rules and similarity clustering."
+readme = "README.md"
+keywords = ["binary-analysis", "triage", "tlsh", "ssdeep", "imphash"]
+categories = ["command-line-utilities", "parser-implementations"]
+
+[lib]
+name = "binscope"
+path = "src/lib.rs"
+
+[[bin]]
+name = "binscope"
+path = "src/main.rs"
+
+[dependencies]
+goblin = "0.10.7"
+clap = { version = "4.6.7", features = ["derive"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+serde_norway = "0.9.42"
+thiserror = "2.0.21"
+md-5 = "0.11.0"
+sha1 = "0.11.0"
+sha2 = "0.11.1"
+regex = "1.13.1"
+log = "0.4.34"
+env_logger = { version = "0.11.11", default-features = false, features = ["auto-color", "humantime"] }
+
+[dev-dependencies]
+proptest = "1.12.0"
+
+[profile.release]
+debug = false
+lto = "thin"
+codegen-units = 4
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+cast_possible_wrap = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+similar_names = "allow"
