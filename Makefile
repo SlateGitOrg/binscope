@@ -4,6 +4,10 @@ CARGO ?= cargo
 # Minimum line coverage (whole crate, generated tables excluded).
 COVERAGE_MIN ?= 85
 COV_IGNORE := (hashes/ordinals|fuzzy/tlsh_tables)\.rs
+# Keep coverage profiles in a project-specific directory: when several projects
+# share one CARGO_TARGET_DIR, cargo-llvm-cov would otherwise delete and merge
+# each other's .profraw files.
+export CARGO_LLVM_COV_TARGET_DIR ?= $(or $(CARGO_TARGET_DIR),target)/llvm-cov-binscope
 
 .PHONY: check fmt fmt-check lint test coverage demo bench eval loc fixtures reference clean
 
