@@ -18,6 +18,7 @@
 
 pub mod entropy;
 pub mod error;
+pub mod format;
 pub mod fuzzy;
 pub mod hashes;
 pub mod strings;
