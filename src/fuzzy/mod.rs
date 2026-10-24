@@ -28,12 +28,17 @@ pub struct FuzzyDigests {
 impl FuzzyDigests {
     /// Compute both digests of `data`.
     pub fn of(data: &[u8]) -> Self {
-        let ssdeep = ssdeep::hash(data).ok().map(|h| h.to_string());
-        let (tlsh, tlsh_unavailable) = match tlsh::hash(data) {
+        Self::from_results(ssdeep::hash(data), tlsh::hash(data))
+    }
+
+    /// Assemble from separately computed digests (lets callers run the two
+    /// passes on different threads).
+    pub fn from_results(ssdeep: crate::Result<SsdeepHash>, tlsh: crate::Result<Tlsh>) -> Self {
+        let (tlsh, tlsh_unavailable) = match tlsh {
             Ok(h) => (Some(h.to_hex()), None),
             Err(e) => (None, Some(e.to_string())),
         };
-        Self { ssdeep, tlsh, tlsh_unavailable }
+        Self { ssdeep: ssdeep.ok().map(|h| h.to_string()), tlsh, tlsh_unavailable }
     }
 }
 

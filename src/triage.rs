@@ -173,6 +173,43 @@ fn summarise_strings(all: &[ExtractedString], sections: &[&Section], max: usize)
     summary
 }
 
+/// Inputs at least this large run the independent whole-file passes
+/// (digests, ssdeep, TLSH, strings) on scoped threads.
+pub const PARALLEL_THRESHOLD: usize = 1 << 20;
+
+/// Propagate a worker panic to the caller unchanged.
+fn join<T>(r: std::thread::Result<T>) -> T {
+    r.unwrap_or_else(|p| std::panic::resume_unwind(p))
+}
+
+/// Results of the passes that only need the raw bytes.
+struct ContentPasses {
+    digests: FileDigests,
+    fuzzy: FuzzyDigests,
+    strings: Vec<ExtractedString>,
+}
+
+fn content_passes(data: &[u8], opts: &StringOptions) -> ContentPasses {
+    if data.len() < PARALLEL_THRESHOLD {
+        return ContentPasses {
+            digests: FileDigests::of(data),
+            fuzzy: FuzzyDigests::of(data),
+            strings: strings::extract(data, opts),
+        };
+    }
+    std::thread::scope(|s| {
+        let digests = s.spawn(|| FileDigests::of(data));
+        let ss = s.spawn(|| crate::fuzzy::ssdeep::hash(data));
+        let tl = s.spawn(|| crate::fuzzy::tlsh::hash(data));
+        let found = strings::extract(data, opts);
+        ContentPasses {
+            digests: join(digests.join()),
+            fuzzy: FuzzyDigests::from_results(join(ss.join()), join(tl.join())),
+            strings: found,
+        }
+    })
+}
+
 /// Triage an in-memory sample. Never fails: unsupported or malformed
 /// containers still get hashes, strings and content-based rule matches,
 /// with `unparsed_reason` explaining what was skipped.
@@ -192,7 +229,7 @@ pub fn analyze_bytes(name: &str, data: &[u8], opts: &TriageOptions, rules: &Rule
             (None, Some(e.to_string()))
         }
     };
-    let all_strings = strings::extract(data, &opts.strings);
+    let ContentPasses { digests, fuzzy, strings: all_strings } = content_passes(data, &opts.strings);
     let sections: Vec<&Section> = binary.as_ref().map(BinaryInfo::all_sections).unwrap_or_default();
     let string_summary = summarise_strings(&all_strings, &sections, opts.max_listed_strings);
     let anomalies = binary.as_ref().map(|b| anomalies::detect(b, data.len() as u64, file_entropy)).unwrap_or_default();
@@ -202,16 +239,11 @@ pub fn analyze_bytes(name: &str, data: &[u8], opts: &TriageOptions, rules: &Rule
     TriageReport {
         schema_version: SCHEMA_VERSION,
         tool: format!("binscope {}", env!("CARGO_PKG_VERSION")),
-        file: FileFacts {
-            name: name.to_string(),
-            size: data.len() as u64,
-            digests: FileDigests::of(data),
-            entropy: file_entropy,
-        },
+        file: FileFacts { name: name.to_string(), size: data.len() as u64, digests, entropy: file_entropy },
         binary,
         unparsed_reason,
         import_hashes,
-        fuzzy: FuzzyDigests::of(data),
+        fuzzy,
         strings: string_summary,
         anomalies,
         capabilities,
@@ -318,6 +350,16 @@ mod tests {
         assert_eq!(sum.listed[0].section.as_deref(), Some(".rodata"));
         assert_eq!(sum.listed[1].section, None);
         assert_eq!(sum.ascii, 3);
+    }
+
+    #[test]
+    fn parallel_and_serial_passes_agree() {
+        let data = crate::synth::generate(crate::synth::Kind::Mixed, PARALLEL_THRESHOLD + 4096, 9);
+        let rules = RuleSet::builtin().unwrap();
+        let big = analyze_bytes("big", &data, &TriageOptions::default(), &rules);
+        assert_eq!(big.file.digests, FileDigests::of(&data));
+        assert_eq!(big.fuzzy, FuzzyDigests::of(&data));
+        assert_eq!(big.strings.ascii, strings::extract_ascii(&data, &StringOptions::default()).len());
     }
 
     #[test]
