@@ -316,6 +316,9 @@ pub fn cluster_with(items: &[Item], method: Method, threshold: u32, brute_force:
     // Candidate order is unspecified; report edges deterministically.
     edges.sort_unstable_by_key(|e| (e.a, e.b));
 
+    // Medoid selection re-uses the scores of linking edges; only intra-cluster
+    // pairs that were not linked directly are scored again.
+    let edge_value: HashMap<(usize, usize), u32> = edges.iter().map(|e| ((e.a, e.b), e.value)).collect();
     let mut groups: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
     for &i in &hashable {
         let root = uf.find(i);
@@ -334,7 +337,11 @@ pub fn cluster_with(items: &[Item], method: Method, threshold: u32, brute_force:
                 members
                     .iter()
                     .filter(|&&o| o != m)
-                    .map(|&o| as_distance(method, score(items, method, m, o)))
+                    .map(|&o| {
+                        let key = pair(m, o);
+                        let v = edge_value.get(&key).copied().unwrap_or_else(|| score(items, method, key.0, key.1));
+                        as_distance(method, v)
+                    })
                     .sum::<u64>()
             })
             .expect("cluster has members");
