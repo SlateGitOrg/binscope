@@ -1,0 +1,91 @@
+# Network and inter-process communication capabilities.
+rules:
+  - id: communication.socket.tcp-client
+    name: connect to a network endpoint over sockets
+    namespace: communication/socket
+    severity: low
+    description: Creates a socket and connects it (BSD sockets or Winsock).
+    attack: [T1071]
+    match:
+      all:
+        - import: socket
+        - any:
+            - import: connect
+            - import: WSAConnect*
+  - id: communication.socket.tcp-server
+    name: accept incoming network connections
+    namespace: communication/socket
+    severity: low
+    description: Binds a socket, listens and accepts connections.
+    match:
+      all:
+        - import: bind
+        - import: listen
+        - any:
+            - import: accept
+            - import: accept4
+            - import: AcceptEx
+  - id: communication.socket.send-receive
+    name: send or receive data on a socket
+    namespace: communication/socket
+    severity: info
+    match:
+      any:
+        - import: send
+        - import: sendto
+        - import: recv
+        - import: recvfrom
+        - import: WSASend
+        - import: WSARecv
+  - id: communication.socket.winsock-init
+    name: initialize Winsock
+    namespace: communication/socket
+    severity: info
+    formats: [pe]
+    match:
+      import: WSAStartup
+  - id: communication.dns.resolve
+    name: resolve host names
+    namespace: communication/dns
+    severity: info
+    match:
+      any:
+        - import: getaddrinfo
+        - import: GetAddrInfo*
+        - import: gethostbyname
+        - import: DnsQuery*
+  - id: communication.http.client
+    name: make HTTP requests through a platform or library API
+    namespace: communication/http
+    severity: low
+    attack: [T1071.001]
+    match:
+      any:
+        - import: WinHttpOpen
+        - import: InternetOpen*
+        - import: URLDownloadToFile*
+        - import: curl_easy_perform
+        - import: CFURLCreate*
+        - import: NSURLSession*
+  - id: communication.url.embedded
+    name: contains URLs
+    namespace: communication/indicator
+    severity: info
+    description: At least one extracted string is a URL.
+    match:
+      string_tag: url
+  - id: communication.ip.embedded
+    name: contains IPv4 address literals
+    namespace: communication/indicator
+    severity: info
+    match:
+      string_tag: ipv4
+  - id: communication.pipe.named
+    name: use named pipes
+    namespace: communication/ipc
+    severity: info
+    formats: [pe]
+    match:
+      any:
+        - import: CreateNamedPipe*
+        - import: ConnectNamedPipe

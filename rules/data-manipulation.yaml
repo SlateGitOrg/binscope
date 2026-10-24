@@ -1,0 +1,43 @@
+# Cryptography, compression and encoding capabilities.
+rules:
+  - id: data.crypto.platform-api
+    name: use a platform cryptography API
+    namespace: data-manipulation/crypto
+    severity: low
+    match:
+      any:
+        - import: CryptAcquireContext*
+        - import: CryptEncrypt
+        - import: CryptDecrypt
+        - import: BCrypt*
+        - import: CCCrypt*
+        - import: SecRandomCopyBytes
+        - import: EVP_*
+  - id: data.crypto.random
+    name: generate cryptographic random numbers
+    namespace: data-manipulation/crypto
+    severity: info
+    match:
+      any:
+        - import: CryptGenRandom
+        - import: BCryptGenRandom
+        - import: getrandom
+        - import: arc4random*
+  - id: data.compression.library
+    name: compress or decompress data with a library
+    namespace: data-manipulation/compression
+    severity: info
+    match:
+      any:
+        - import: inflate*
+        - import: deflate*
+        - import: uncompress
+        - import: compress2
+        - import: RtlDecompressBuffer
+        - import: compression_decode_buffer
+  - id: data.encoding.base64-strings
+    name: contains long base64-like strings
+    namespace: data-manipulation/encoding
+    severity: info
+    match:
+      string_tag: base64-like

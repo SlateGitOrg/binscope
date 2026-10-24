@@ -16,11 +16,13 @@
 //!
 //! binscope never executes, emulates or modifies its inputs.
 
+pub mod anomalies;
 pub mod entropy;
 pub mod error;
 pub mod format;
 pub mod fuzzy;
 pub mod hashes;
+pub mod rules;
 pub mod strings;
 pub mod synth;
 

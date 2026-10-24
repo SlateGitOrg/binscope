@@ -1,0 +1,127 @@
+# File system, process, console and configuration capabilities.
+rules:
+  - id: host.file.read-write
+    name: read and write files
+    namespace: host-interaction/file-system
+    severity: info
+    match:
+      any:
+        - all:
+            - any: [{import: fopen}, {import: open}, {import: openat}]
+            - any: [{import: fwrite}, {import: write}, {import: fread}, {import: read}]
+        - all:
+            - import: CreateFile*
+            - any: [{import: ReadFile}, {import: WriteFile}]
+  - id: host.file.delete
+    name: delete files
+    namespace: host-interaction/file-system
+    severity: low
+    match:
+      any:
+        - import: DeleteFile*
+        - import: unlink
+        - import: unlinkat
+        - import: remove
+  - id: host.file.temp
+    name: use temporary files
+    namespace: host-interaction/file-system
+    severity: info
+    match:
+      any:
+        - import: GetTempPath*
+        - import: GetTempFileName*
+        - import: mkstemp
+        - import: tmpfile
+        - string_regex: '(?i)^/tmp/'
+  - id: host.file.enumerate
+    name: enumerate files and directories
+    namespace: host-interaction/file-system
+    severity: low
+    attack: [T1083]
+    match:
+      any:
+        - all: [{import: FindFirstFile*}, {import: FindNextFile*}]
+        - all: [{import: opendir}, {import: readdir}]
+  - id: host.process.create
+    name: create processes
+    namespace: host-interaction/process
+    severity: medium
+    attack: [T1106]
+    match:
+      any:
+        - import: CreateProcess*
+        - import: ShellExecute*
+        - import: WinExec
+        - import: posix_spawn*
+        - import: system
+        - all:
+            - import: fork
+            - import: exec*
+  - id: host.process.enumerate
+    name: enumerate running processes
+    namespace: host-interaction/process
+    severity: low
+    attack: [T1057]
+    match:
+      any:
+        - all: [{import: CreateToolhelp32Snapshot}, {import: Process32*}]
+        - import: EnumProcesses
+        - import: proc_listpids
+  - id: host.process.terminate
+    name: terminate other processes
+    namespace: host-interaction/process
+    severity: low
+    match:
+      any:
+        - import: TerminateProcess
+        - import: kill
+  - id: host.console.output
+    name: write to the console
+    namespace: host-interaction/console
+    severity: info
+    match:
+      any:
+        - import: WriteConsole*
+        - all: [{import: GetStdHandle}, {import: WriteFile}]
+        - import: puts
+        - import: printf
+  - id: host.registry.modify
+    name: modify the Windows registry
+    namespace: host-interaction/registry
+    severity: medium
+    attack: [T1112]
+    formats: [pe]
+    match:
+      any:
+        - import: RegSetValue*
+        - import: RegCreateKey*
+        - import: RegDeleteKey*
+  - id: host.service.create
+    name: create or configure system services
+    namespace: host-interaction/service
+    severity: medium
+    attack: [T1543.003]
+    formats: [pe]
+    match:
+      all:
+        - import: OpenSCManager*
+        - any: [{import: CreateService*}, {import: ChangeServiceConfig*}]
+  - id: host.environment.query
+    name: query environment or system information
+    namespace: host-interaction/environment
+    severity: info
+    attack: [T1082]
+    match:
+      any:
+        - import: GetSystemInfo
+        - import: GetComputerName*
+        - import: uname
+        - import: sysctl*
+        - import: getenv
+        - import: GetEnvironmentVariable*
+  - id: host.registry.key-strings
+    name: references registry keys
+    namespace: host-interaction/registry
+    severity: info
+    match:
+      string_tag: registry

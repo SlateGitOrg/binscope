@@ -1,0 +1,33 @@
+# Run-time code loading and memory-protection capabilities.
+rules:
+  - id: load-code.dynamic-library
+    name: load libraries and resolve symbols at run time
+    namespace: load-code/library
+    severity: low
+    attack: [T1129]
+    match:
+      any:
+        - all: [{import: LoadLibrary*}, {import: GetProcAddress}]
+        - all: [{import: dlopen}, {import: dlsym}]
+  - id: load-code.executable-memory
+    name: allocate or re-protect executable memory
+    namespace: load-code/memory
+    severity: medium
+    description: APIs that can create or change executable mappings (JITs, unpackers, loaders).
+    match:
+      any:
+        - all: [{import: VirtualAlloc*}, {import: VirtualProtect*}]
+        - import: mprotect
+        - import: mach_vm_protect
+  - id: load-code.cross-process-write
+    name: write into another process's memory
+    namespace: load-code/process
+    severity: high
+    description: The API set classically used for process injection; also used by debuggers.
+    attack: [T1055]
+    formats: [pe]
+    match:
+      all:
+        - import: OpenProcess
+        - import: WriteProcessMemory
+        - any: [{import: CreateRemoteThread*}, {import: NtCreateThreadEx}, {import: QueueUserAPC}]

@@ -1,0 +1,23 @@
+# Debugger and analysis-environment checks. Labelled so analysts know to
+# expect them; binscope itself only reports their presence.
+rules:
+  - id: anti-analysis.debugger-check
+    name: check for an attached debugger
+    namespace: anti-analysis/debugger
+    severity: medium
+    attack: [T1622]
+    match:
+      any:
+        - import: IsDebuggerPresent
+        - import: CheckRemoteDebuggerPresent
+        - import: NtQueryInformationProcess
+        - all: [{import: ptrace}, {format: elf}]
+  - id: anti-analysis.timing-check
+    name: high-resolution timing (often used to detect single-stepping)
+    namespace: anti-analysis/timing
+    severity: info
+    formats: [pe]
+    match:
+      all:
+        - import: QueryPerformanceCounter
+        - import: GetTickCount*

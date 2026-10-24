@@ -1,0 +1,35 @@
+# Structural traits of the executable itself, built on binscope's anomaly
+# checks and section facts.
+rules:
+  - id: executable.packed-or-compressed-section
+    name: contains compressed or encrypted data
+    namespace: executable/packing
+    severity: medium
+    description: A section of at least 1 KiB has entropy >= 7.2 bits/byte.
+    match:
+      section: {min_entropy: 7.2, min_size: 1024}
+  - id: executable.packer-layout
+    name: layout typical of runtime packers
+    namespace: executable/packing
+    severity: high
+    description: High-entropy data together with a structural hint that code is unpacked at run time.
+    match:
+      all:
+        - any: [{anomaly: high-entropy-section}, {anomaly: high-entropy-file}]
+        - any:
+            - anomaly: executable-section-without-file-data
+            - anomaly: writable-executable-section
+            - anomaly: entry-in-writable-section
+            - anomaly: no-imports
+  - id: executable.writable-code
+    name: has writable and executable memory
+    namespace: executable/layout
+    severity: medium
+    match:
+      anomaly: writable-executable-section
+  - id: executable.overlay
+    name: carries data appended after the image
+    namespace: executable/layout
+    severity: low
+    match:
+      anomaly: overlay
