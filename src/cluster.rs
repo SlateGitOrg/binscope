@@ -65,11 +65,7 @@ pub struct Item {
 impl Item {
     /// Hash `data` with both algorithms.
     pub fn from_bytes(name: impl Into<String>, data: &[u8]) -> Self {
-        Self {
-            name: name.into(),
-            ssdeep: ssdeep::hash(data).ok(),
-            tlsh: crate::fuzzy::tlsh::hash(data).ok(),
-        }
+        Self { name: name.into(), ssdeep: ssdeep::hash(data).ok(), tlsh: crate::fuzzy::tlsh::hash(data).ok() }
     }
 
     fn has(&self, method: Method) -> bool {
@@ -154,10 +150,7 @@ pub struct UnionFind {
 impl UnionFind {
     /// `n` singleton sets.
     pub fn new(n: usize) -> Self {
-        Self {
-            parent: (0..n).collect(),
-            size: vec![1; n],
-        }
+        Self { parent: (0..n).collect(), size: vec![1; n] }
     }
 
     /// Representative of `x`'s set.
@@ -226,27 +219,32 @@ pub fn ssdeep_candidates(items: &[Item]) -> HashSet<(usize, usize)> {
 }
 
 /// TLSH candidate pairs: every pair whose length-term lower bound does not
-/// already exceed `max_distance`.
-pub fn tlsh_candidates(items: &[Item], max_distance: u32) -> HashSet<(usize, usize)> {
+/// already exceed `max_distance`. Bucket pairs are visited once each, so the
+/// result has no duplicates and needs no hash set.
+pub fn tlsh_candidates(items: &[Item], max_distance: u32) -> Vec<(usize, usize)> {
     let mut by_l: BTreeMap<u8, Vec<usize>> = BTreeMap::new();
     for (i, it) in items.iter().enumerate() {
         if let Some(t) = &it.tlsh {
             by_l.entry(t.lvalue).or_default().push(i);
         }
     }
-    let mut out = HashSet::new();
     let buckets: Vec<(u8, &Vec<usize>)> = by_l.iter().map(|(k, v)| (*k, v)).collect();
+    let mut out = Vec::new();
     for (x, &(la, ia)) in buckets.iter().enumerate() {
-        for &(lb, ib) in &buckets[x..] {
+        // Same bucket: each unordered pair once.
+        for (k, &a) in ia.iter().enumerate() {
+            for &b in &ia[k + 1..] {
+                out.push(pair(a, b));
+            }
+        }
+        for &(lb, ib) in &buckets[x + 1..] {
             // Lower bound of the full distance: skip hopeless bucket pairs.
             if Tlsh::length_distance(la, lb) > max_distance {
                 continue;
             }
             for &a in ia {
                 for &b in ib {
-                    if a != b {
-                        out.insert(pair(a, b));
-                    }
+                    out.push(pair(a, b));
                 }
             }
         }
@@ -256,16 +254,12 @@ pub fn tlsh_candidates(items: &[Item], max_distance: u32) -> HashSet<(usize, usi
 
 fn score(items: &[Item], method: Method, a: usize, b: usize) -> u32 {
     match method {
-        Method::Tlsh => items[a]
-            .tlsh
-            .as_ref()
-            .zip(items[b].tlsh.as_ref())
-            .map_or(u32::MAX, |(x, y)| x.distance(y, true)),
-        Method::Ssdeep => items[a]
-            .ssdeep
-            .as_ref()
-            .zip(items[b].ssdeep.as_ref())
-            .map_or(0, |(x, y)| ssdeep::compare(x, y)),
+        Method::Tlsh => {
+            items[a].tlsh.as_ref().zip(items[b].tlsh.as_ref()).map_or(u32::MAX, |(x, y)| x.distance(y, true))
+        }
+        Method::Ssdeep => {
+            items[a].ssdeep.as_ref().zip(items[b].ssdeep.as_ref()).map_or(0, |(x, y)| ssdeep::compare(x, y))
+        }
     }
 }
 
@@ -292,7 +286,7 @@ pub fn cluster_with(items: &[Item], method: Method, threshold: u32, brute_force:
     }
     let hashable: Vec<usize> = (0..items.len()).filter(|&i| items[i].has(method)).collect();
     let n = hashable.len() as u64;
-    let mut candidates: Vec<(usize, usize)> = if brute_force {
+    let candidates: Vec<(usize, usize)> = if brute_force {
         let mut v = Vec::new();
         for (x, &a) in hashable.iter().enumerate() {
             for &b in &hashable[x + 1..] {
@@ -306,24 +300,21 @@ pub fn cluster_with(items: &[Item], method: Method, threshold: u32, brute_force:
             Method::Ssdeep if threshold == 0 => {
                 return cluster_with(items, method, threshold, true);
             }
-            Method::Ssdeep => ssdeep_candidates(items),
+            Method::Ssdeep => ssdeep_candidates(items).into_iter().collect(),
         }
-        .into_iter()
-        .collect()
     };
-    candidates.sort_unstable();
 
     let mut uf = UnionFind::new(items.len());
     let mut edges = Vec::new();
-    let mut dist: HashMap<(usize, usize), u32> = HashMap::new();
     for &(a, b) in &candidates {
         let v = score(items, method, a, b);
-        dist.insert((a, b), v);
         if linked(method, v, threshold) {
             uf.union(a, b);
             edges.push(Edge { a, b, value: v });
         }
     }
+    // Candidate order is unspecified; report edges deterministically.
+    edges.sort_unstable_by_key(|e| (e.a, e.b));
 
     let mut groups: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
     for &i in &hashable {
@@ -343,11 +334,7 @@ pub fn cluster_with(items: &[Item], method: Method, threshold: u32, brute_force:
                 members
                     .iter()
                     .filter(|&&o| o != m)
-                    .map(|&o| {
-                        let key = pair(m, o);
-                        let v = dist.get(&key).copied().unwrap_or_else(|| score(items, method, key.0, key.1));
-                        as_distance(method, v)
-                    })
+                    .map(|&o| as_distance(method, score(items, method, m, o)))
                     .sum::<u64>()
             })
             .expect("cluster has members");
@@ -363,10 +350,7 @@ pub fn cluster_with(items: &[Item], method: Method, threshold: u32, brute_force:
         singletons,
         unhashable: (0..items.len()).filter(|&i| !items[i].has(method)).collect(),
         edges,
-        stats: ClusterStats {
-            pairs_total: n * n.saturating_sub(1) / 2,
-            pairs_compared: candidates.len() as u64,
-        },
+        stats: ClusterStats { pairs_total: n * n.saturating_sub(1) / 2, pairs_compared: candidates.len() as u64 },
     })
 }
 
@@ -412,7 +396,7 @@ pub fn adjusted_rand_index(predicted: &[usize], truth: &[usize]) -> f64 {
     let a: f64 = rows.values().map(|&v| comb2(v)).sum();
     let b: f64 = cols.values().map(|&v| comb2(v)).sum();
     let expected = a * b / comb2(n);
-    let max = (a + b) / 2.0;
+    let max = f64::midpoint(a, b);
     if (max - expected).abs() < f64::EPSILON {
         return 1.0;
     }
