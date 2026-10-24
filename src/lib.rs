@@ -18,8 +18,10 @@
 
 pub mod entropy;
 pub mod error;
+pub mod fuzzy;
 pub mod hashes;
 pub mod strings;
+pub mod synth;
 
 pub use error::{Error, Result};
 
