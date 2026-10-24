@@ -76,8 +76,12 @@ build_pe() { # machine(x64|x86) family variant out
 }
 
 build_macho() { # arch family variant out
-    local arch=$1 fam=$2 var=$3 out=$4
-    clang -arch "$arch" -mmacosx-version-min=11.0 "${CFLAGS[@]}" -DBS_DARWIN -DVARIANT="$var" \
+    local arch=$1 fam=$2 var=$3 out=$4 minos
+    # arm64 targets macOS 12, where ld emits LC_DYLD_CHAINED_FIXUPS; x86_64
+    # targets 10.15 and keeps classic dyld-info bind opcodes. The corpus thus
+    # covers both import encodings.
+    if [ "$arch" = arm64 ]; then minos=12.0; else minos=10.15; fi
+    clang -arch "$arch" -mmacosx-version-min="$minos" "${CFLAGS[@]}" -DBS_DARWIN -DVARIANT="$var" \
         -I"$SRC" -I"$WORK/inc" "$SRC/$(source_for "$fam")" -o "$out"
 }
 
