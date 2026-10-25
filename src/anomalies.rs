@@ -277,7 +277,7 @@ mod tests {
         let mut i =
             info(Format::Elf, vec![section(".text", 6.0, false, true, 0x100, 0x400, 0x1100, 0x400)], Some(0x1100));
         i.imports.push(crate::format::Import { library: None, name: "puts".into(), ordinal: None, weak: false });
-        assert!(detect(&i, 0x1000, 5.0).is_empty());
+        assert_eq!(detect(&i, 0x1000, 5.0), Vec::<Anomaly>::new());
     }
 
     #[test]

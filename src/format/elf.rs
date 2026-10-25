@@ -227,7 +227,7 @@ mod tests {
         assert_eq!(machine_name(8), "mips");
         assert_eq!(machine_name(20), "powerpc");
         assert_eq!(machine_name(21), "powerpc64");
-        assert!(!machine_name(2).is_empty());
+        assert_ne!(machine_name(2), "");
         for (abi, name) in [
             (0, "sysv"),
             (3, "gnu/linux"),

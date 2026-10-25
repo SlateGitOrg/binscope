@@ -195,7 +195,7 @@ mod tests {
             assert_ne!(a, generate(kind, 10_000, 43));
             assert_eq!(Kind::from_name(kind.as_str()), Some(kind));
         }
-        assert!(generate(Kind::Text, 0, 1).is_empty());
+        assert_eq!(generate(Kind::Text, 0, 1), Vec::<u8>::new());
         assert_eq!(Kind::from_name("bogus"), None);
     }
 
@@ -211,7 +211,7 @@ mod tests {
         let m = mutate(&base, 10, 1);
         assert_ne!(m, base);
         assert!(m.len() >= base.len());
-        assert!(mutate(&[], 10, 1).is_empty());
+        assert_eq!(mutate(&[], 10, 1), Vec::<u8>::new());
     }
 
     #[test]

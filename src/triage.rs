@@ -309,7 +309,7 @@ mod tests {
         assert!(r.fuzzy.tlsh.is_some());
         assert_eq!(r.strings.tags.get("url"), Some(&1)); // one long printable run
         assert!(r.capabilities.iter().any(|c| c.id == "communication.url.embedded"));
-        assert!(r.anomalies.is_empty());
+        assert_eq!(r.anomalies, Vec::<Anomaly>::new());
         assert_eq!(r.max_severity(), Some(crate::rules::Severity::Info));
     }
 

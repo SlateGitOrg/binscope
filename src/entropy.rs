@@ -129,7 +129,7 @@ mod tests {
     fn windows_cover_input() {
         let data = vec![7u8; 10];
         assert_eq!(windowed(&data, 4).len(), 3);
-        assert!(windowed(&data, 0).is_empty());
+        assert_eq!(windowed(&data, 0), Vec::<f64>::new());
     }
 
     #[test]

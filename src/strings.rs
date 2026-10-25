@@ -293,7 +293,7 @@ mod tests {
         assert!(tag("kernel32.dll").contains(&StringTag::LibraryName));
         assert!(tag("libc.so.6").contains(&StringTag::LibraryName));
         assert!(tag("QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNkZWZn").contains(&StringTag::Base64Like));
-        assert!(tag("plain words").is_empty());
+        assert_eq!(tag("plain words"), Vec::<StringTag>::new());
     }
 
     #[test]

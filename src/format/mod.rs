@@ -454,8 +454,8 @@ mod tests {
     fn slices_are_clamped() {
         let data = [1u8, 2, 3, 4];
         assert_eq!(file_slice(&data, 2, 10), &[3, 4]);
-        assert!(file_slice(&data, 10, 10).is_empty());
-        assert!(file_slice(&data, u64::MAX, u64::MAX).is_empty());
+        assert_eq!(file_slice(&data, 10, 10), []);
+        assert_eq!(file_slice(&data, u64::MAX, u64::MAX), []);
     }
 
     #[test]
