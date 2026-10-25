@@ -1,10 +1,11 @@
 # binscope
 
-Static triage for ELF, Mach-O and PE binaries, written in Rust: sections with
-per-section entropy, imports/exports, imphash, ASCII/UTF-16 strings, **ssdeep
-and TLSH implemented from their published specs and verified byte-for-byte
-against the reference tools**, YAML capability rules with evidence, and
-similarity clustering of sample sets.
+Static triage for ELF, Mach-O and PE binaries in one Rust CLI: sections and
+entropy, imports/exports, imphash, tagged strings, **ssdeep and TLSH that match
+the reference tools byte for byte**, YAML capability rules with evidence, and
+similarity clustering.
+
+[![CI](https://github.com/SlateGitOrg/binscope/actions/workflows/ci.yml/badge.svg)](https://github.com/SlateGitOrg/binscope/actions/workflows/ci.yml)
 
 binscope never runs, emulates or modifies what it inspects. It is a
 defensive, offline first-look tool.
@@ -17,10 +18,10 @@ matcher) and joining their output by hand. binscope does that first pass in
 one command, gives the same answers as those tools where they overlap, and
 writes a JSON report that a pipeline can store and diff.
 
-**Who it is for:** SOC and IR analysts doing first-pass triage, detection
+It is aimed at SOC and IR analysts doing first-pass triage, detection
 engineers who want capability labels with evidence instead of a bare verdict,
-and people learning binary formats who want readable output they can check
-against reference tools.
+and anyone learning binary formats who wants output they can check against
+reference tools.
 
 ## Features
 
@@ -53,60 +54,94 @@ against reference tools.
   pruning is exact (property-tested against brute force) and each cluster
   reports its medoid.
 * **Output:** terminal (colour optional; control characters from the sample
-  are escaped), JSON and JSONL. `--fail-on <severity>` makes CI gating
-  possible.
+  are escaped), JSON and JSONL. `--fail-on <severity>` exits with status 3 so
+  a pipeline can gate on findings.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    CLI[binscope CLI] --> T[triage]
-    T --> F[format: goblin + chained fixups + verneed]
-    T --> C["content passes (threads >= 1 MiB):<br/>digests, ssdeep, TLSH, strings"]
-    F --> A[anomalies]
-    F --> H[imphash / symhash]
-    C --> R[rules engine]
-    A --> R
-    F --> R
-    T --> O[(TriageReport JSON)]
-    O --> V[human renderer]
-    CLI --> K[cluster: union-find + exact pruning]
+    IN["sample files / directories"] --> CLI["binscope CLI (clap)"]
+    Y["rules/*.yaml + --rules"] --> RS["rules::RuleSet<br/>strict validation, compiled matchers"]
+    CLI --> T["triage::analyze_bytes"]
+    T --> F["format::parse<br/>goblin + chained fixups + verneed"]
+    T --> C["content passes (scoped threads >= 1 MiB):<br/>digests, ssdeep, TLSH, strings"]
+    F --> A["anomalies::detect"]
+    F --> H["imphash / symhash"]
+    F --> RS
+    A --> RS
+    C --> RS
+    RS --> O[("TriageReport")]
+    H --> O
+    C --> O
+    O --> V["human renderer"]
+    O --> J["JSON / JSONL"]
+    CLI --> K["compare / cluster<br/>union-find + exact pruning"]
+    C --> K
 ```
 
-Details, algorithms and complexity: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Everything is one crate (library + `binscope` binary), synchronous and
+in-process, with no network access. `triage::analyze_bytes` is the core: the
+format layer builds a format-neutral `BinaryInfo`, four whole-file passes
+(digests, ssdeep, TLSH, strings) run in parallel for inputs of 1 MiB or more,
+and the rule engine evaluates over imports, strings, sections and anomalies.
+A malformed file still gets hashes, strings and content rules, and a panic
+inside the container parser becomes a per-file error instead of aborting a
+batch.
+
+Module map, algorithms and complexity: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Threat model: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 
-## Quickstart
+## Quick start
+
+Prerequisites: Rust 1.85 or newer (CI builds on 1.85 and current stable),
+GNU make, and `python3` for `make demo`. `make check` additionally needs
+[cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov)
+(`cargo install cargo-llvm-cov --locked`). Everything runs offline against
+the fixture corpus committed in `fixtures/bin`.
 
 ```sh
-# Rust 1.85+ (cargo-llvm-cov is only needed for `make check`)
-cargo build --release
-B=target/release/binscope
-
-$B triage fixtures/bin/pe-x86_64/net-v0.exe        # human report
-$B triage --json path/to/sample                     # JSON report
-$B triage --jsonl --fail-on medium samples/         # CI gate, one JSON object per line
-$B hash samples/                                    # md5, sha256, imphash|symhash, ssdeep, tlsh
-$B compare a.bin b.bin                              # or two ssdeep / TLSH digests
-$B cluster --method tlsh --threshold 70 samples/
-$B strings --tagged-only sample.exe
-$B rules list --rules my-rules/                     # built-in pack + your rules
-$B rules check my-rules/                            # validate rule files only
+cargo build --release --locked
+./target/release/binscope triage fixtures/bin/pe-x86_64/net-v0.exe
+./target/release/binscope cluster fixtures/bin/elf-x86_64
+make demo          # end-to-end run over the bundled fixtures
+cargo test --locked
+make check         # fmt, clippy, rustdoc, tests under coverage (needs cargo-llvm-cov)
 ```
 
-| command | what it gates |
+## Usage
+
+```sh
+B=target/release/binscope
+$B triage sample.exe                          # human report
+$B triage --json sample.exe                   # JSON report (array for several files)
+$B triage --jsonl --fail-on medium samples/   # one object per line; exit 3 on a medium+ finding
+$B triage --rules my-rules/ sample.exe        # built-in pack plus your rules
+$B hash samples/                              # md5, sha256, imphash|symhash, ssdeep, tlsh (TSV)
+$B compare a.bin b.bin                        # or two ssdeep / TLSH digests
+$B cluster --method tlsh --threshold 70 samples/
+$B strings --tagged-only sample.exe
+$B rules list --rules my-rules/
+$B rules check my-rules/                      # validate rule files only
+```
+
+Exit status: 0 success, 1 error, 2 usage error, 3 a `--fail-on` threshold was
+reached. Directories are walked recursively without following symlinks.
+
+| make target | what it does |
 |---|---|
-| `make check` | rustfmt check, clippy (pedantic, `-D warnings`), rustdoc `-D warnings`, the full test suite run under cargo-llvm-cov with an 85% line floor |
+| `make check` | rustfmt check, clippy (pedantic, `-D warnings`), rustdoc `-D warnings`, the full test suite under cargo-llvm-cov with an 85% line floor |
+| `make test` | the test suite without coverage |
 | `make demo` | offline end-to-end run over the bundled fixtures |
 | `make bench` / `make eval` | throughput benchmark / clustering evaluation |
+| `make loc` | non-test source line count |
 | `make reference` | rebuild ssdeep, TLSH and pefile in a temp dir and regenerate `tests/reference/` (needs network) |
 | `make fixtures` | rebuild the fixture corpus from C sources (needs macOS: clang, rust-lld, lipo) |
 
-## Demo
+## Example output
 
-Output pasted from a real `make demo` run. Only some of its steps are shown;
-the full run also triages a universal Mach-O and runs `hash` and
-`rules list`.
+Captured from `make demo`. Only some of its steps are shown; the full run
+also triages a universal Mach-O, hashes a directory and lists the rules.
 
 ```text
 $ binscope triage --max-strings 8 fixtures/bin/pe-x86_64/net-v0.exe
@@ -262,9 +297,18 @@ Other leaves: `library`, `export`, `string` (case-insensitive substring),
 `unix-path`, `registry`, `library-name`, `base64-like`), `anomaly` (ids in
 `src/anomalies.rs`) and `format`. A rule-level `formats: [pe]` restricts where
 the rule applies. Unknown keys, bad regexes, unknown tags or anomaly ids and
-duplicate ids fail the load and name the file and the rule.
+duplicate ids fail the load and name the file and the rule. The built-in pack
+lives in [rules/](rules/) and is compiled into the binary.
 
-## Verified against reference tools
+## How it works
+
+The algorithms (one-pass ssdeep over all 31 block sizes, TLSH quartile
+encoding and distance, rule compilation, string-to-section attribution and the
+clustering pruning bounds) are described with their complexity in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). This section collects the
+evidence for them.
+
+### Verified against reference tools
 
 `tests/reference_vectors.rs` checks binscope against output committed from
 the real tools. The vectors cover all 121 fixtures plus 132 synthetic inputs
@@ -286,41 +330,7 @@ checksummed source release in a temporary directory.
 Command: `cargo test --release --test reference_vectors` (also part of
 `make check`).
 
-## Tests and coverage
-
-`make check` runs the whole suite (inline unit tests, `tests/fixtures.rs`,
-`tests/cli.rs`, `tests/properties.rs` with proptest, `tests/reference_vectors.rs`)
-under cargo-llvm-cov. The run is recorded in the build report; the
-figure is printed by:
-
-```sh
-cargo llvm-cov --summary-only --ignore-filename-regex '(hashes/ordinals|fuzzy/tlsh_tables)\.rs'
-```
-
-Result of the last local run (`make check`, 127 tests):
-
-| scope | lines | line coverage |
-|---|---:|---:|
-| whole crate (generated tables excluded) — the gated figure | 3,926 | **94.45%** |
-| core logic (excluding `main.rs`, `report.rs`, `synth.rs`) | 3,402 | 95.27% |
-| lowest module: `format/elf.rs` (rare section-less / RELRO branches) | 209 | 82.78% |
-
-The per-module table comes from the same `cargo llvm-cov` command. Lines
-are as llvm-cov counts them, which differs from the LOC count below.
-
-Size (`make loc`, which counts non-blank, non-comment lines outside
-`#[cfg(test)]` modules): **4,023 lines of non-test Rust**, with generated tables
-excluded. Tests add 1,178 lines of inline unit tests and 701 lines of integration
-tests.
-
-Property tests cover: entropy bounds, string extraction fidelity,
-ssdeep/TLSH streaming == one-shot, digest round trips, metric symmetry,
-parser robustness on random bytes behind real magic numbers, and
-clustering-with-pruning == brute force on random corpora. The fixture
-suite also triages 492 truncated or bit-flipped variants of real fixtures
-and requires a report (never a crash) for each.
-
-## Benchmarks
+### Benchmarks
 
 `make bench` (= `cargo run --release --example throughput`). Apple M1 Pro,
 release build, best of 5 runs. The machine was shared with other builds
@@ -345,9 +355,8 @@ fixture corpus: 121 files, 1.91 MiB, full triage in 44.3 ms (2734 files/s, 43.2 
 
 * All passes are single-pass O(n). "Full triage" on a large input runs the
   digest, ssdeep, TLSH and string passes on four scoped threads, so it takes
-  about as long as the slowest of them plus rule evaluation. The same
-  command measured 49.7 MiB/s at commit `a308f05`, before the passes were
-  parallelised.
+  about as long as the slowest of them plus rule evaluation. Before the
+  passes were parallelised, the same command measured 49.7 MiB/s.
 * The fixture corpus is many tiny files, so there per-file overhead
   (parsing, 34 rules, report assembly) dominates.
 * Clustering: the ssdeep 7-gram index scores 0.35% of all pairs and returns
@@ -356,21 +365,18 @@ fixture corpus: 121 files, 1.91 MiB, full triage in 44.3 ms (2734 files/s, 43.2 
   clustering stays close to quadratic; at O(32) per pair that is still
   cheap at this scale.
 
-## Evaluation: what fuzzy-hash clustering can and cannot do
+### Clustering evaluation: what fuzzy hashes can and cannot do
 
 `make eval` (= `cargo run --release --example cluster_eval`). The default
 thresholds (TLSH <= 70, ssdeep >= 40) were fixed before this evaluation ran
-(see DECISIONS.md). The sweep below is a sensitivity analysis on the same
-corpus, not tuning.
+(see [DECISIONS.md](DECISIONS.md)). The sweep below is a sensitivity analysis
+on the same corpus, not tuning.
 
-### On the fixture corpus
-
-Ground truth comes from `fixtures/MANIFEST.tsv`. Under "program+target", the
-four variants of one program built for one target form a group. Under
-"program only", all builds of a program form one group, across targets.
-Scores are pairwise precision, recall and F1, plus the adjusted Rand index.
-
-#### Default thresholds
+**On the fixture corpus.** Ground truth comes from `fixtures/MANIFEST.tsv`.
+Under "program+target", the four variants of one program built for one target
+form a group. Under "program only", all builds of a program form one group,
+across targets. Scores are pairwise precision, recall and F1, plus the
+adjusted Rand index.
 
 | method | truth | clusters | pair precision | pair recall | pair F1 | ARI |
 |---|---|---:|---:|---:|---:|---:|
@@ -379,7 +385,7 @@ Scores are pairwise precision, recall and F1, plus the adjusted Rand index.
 | Ssdeep 40 | program+target | 20 | 0.261 | 0.439 | 0.327 | 0.306 |
 | Ssdeep 40 | program only | 20 | 0.789 | 0.170 | 0.280 | 0.227 |
 
-#### Sensitivity (truth = program+target)
+Sensitivity (truth = program+target):
 
 | method | threshold | clusters | precision | recall | F1 | ARI |
 |---|---:|---:|---:|---:|---:|---:|
@@ -416,16 +422,12 @@ What the clusters actually contain (`binscope cluster fixtures/bin`):
   files, not to the implementation: the digests match the reference tools
   exactly.
 
-### Edit robustness (synthetic)
-
-Each of 60 random, mixed or text bases (64 KiB, from `binscope::synth`) is
-compared with an edited copy of itself, and every base with every other
-base. Synthetic data stands in for real code changes here; it is not real
-malware or software.
-
-#### Results (60 x 64 KiB bases: random, mixed, text)
-
-Share of (original, edited copy) pairs each hash links at its default threshold.
+**Edit robustness (synthetic).** Each of 60 random, mixed or text bases
+(64 KiB, from `binscope::synth`) is compared with an edited copy of itself,
+and every base with every other base. Synthetic data stands in for real code
+changes here; it is not real malware or software. The first table is the
+share of (original, edited copy) pairs each hash links at its default
+threshold.
 
 | edit | bytes rewritten | TLSH <= 70 | ssdeep >= 40 | median TLSH | median ssdeep |
 |---|---:|---:|---:|---:|---:|
@@ -451,10 +453,10 @@ digest survives. TLSH tolerates spread-out edits, but it also links files
 that share only byte statistics (same-vocabulary text, same block layout).
 That is why binscope reports both.
 
-## Design decisions
+### Design decisions
 
-The main rulings, with reasons and costs, are in
-[DECISIONS.md](DECISIONS.md). In short:
+Each ruling, with its reason and its cost if wrong, is in
+[DECISIONS.md](DECISIONS.md). The main ones:
 
 * Both ssdeep and TLSH are implemented, and libfuzzy and TLSH 4.12.1
   behaviour is reproduced bit for bit, including libfuzzy's block-size
@@ -467,6 +469,72 @@ The main rulings, with reasons and costs, are in
   libraries via symbol versioning.
 * Clustering uses exact pruning only, never approximate indexes, so results
   are reproducible and testable.
+* `unsafe` is forbidden crate-wide, every file-derived offset is clamped, and
+  parser panics are caught per file ([docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)).
+
+## Testing
+
+```sh
+cargo test --locked                               # everything
+cargo test --release --test reference_vectors     # reference-tool vectors only
+make check                                        # the full gate, as CI runs it
+```
+
+The suite (127 tests) is inline unit tests plus four integration suites:
+
+* `tests/fixtures.rs` checks every fixture's sha256 against
+  `fixtures/MANIFEST.tsv` and its expected format and architecture, the
+  imports and capabilities of each program, both Mach-O import encodings, the
+  entropy contrast and JSON round trips. It also triages 492 truncated or
+  bit-flipped variants of real fixtures and requires a report (never a crash)
+  for each.
+* `tests/cli.rs` drives the built binary: triage in human, colour, JSON and
+  JSONL modes, `--fail-on` exit codes, extra and disabled rule packs, `hash`,
+  `compare` on files and on digests, `cluster`, `strings` filters, and the
+  error for a missing input.
+* `tests/properties.rs` (proptest): entropy bounds, string extraction
+  fidelity, ssdeep/TLSH streaming == one-shot, digest round trips, metric
+  symmetry, parser robustness on random bytes behind real magic numbers, and
+  clustering-with-pruning == brute force on random corpora.
+* `tests/reference_vectors.rs`: the reference-tool comparison above.
+
+Coverage is gated at 85% of lines in `make check`. The figure comes from:
+
+```sh
+cargo llvm-cov --summary-only --ignore-filename-regex '(hashes/ordinals|fuzzy/tlsh_tables)\.rs'
+```
+
+| scope | lines | line coverage |
+|---|---:|---:|
+| whole crate (generated tables excluded), the gated figure | 3,926 | **94.45%** |
+| core logic (excluding `main.rs`, `report.rs`, `synth.rs`) | 3,317 | 95.12% |
+| lowest module: `format/elf.rs` (rare section-less / RELRO branches) | 209 | 82.78% |
+
+Lines are as llvm-cov counts them. `make loc` counts non-blank, non-comment
+lines outside `#[cfg(test)]` modules: **4,023 lines of non-test Rust**
+(generated tables excluded), plus 1,178 lines of inline unit tests and 701
+lines of integration tests.
+
+CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the same gates:
+rustfmt and clippy/rustdoc, the test suite on Linux and macOS, the coverage
+floor, a build on the 1.85 MSRV, and the offline demo plus a quick benchmark.
+
+## Project layout
+
+```text
+src/            library + CLI
+  format/       ELF, PE, Mach-O parsing (goblin + chained fixups, verneed, mitigations)
+  fuzzy/        ssdeep and TLSH
+  hashes/       file digests, imphash (+ generated ordinal tables), symhash
+  rules/        YAML schema, validation, compilation and evaluation
+  triage.rs     orchestration and report type; cluster.rs, report.rs, strings.rs, entropy.rs, anomalies.rs
+rules/          built-in YAML capability rules (compiled into the binary)
+fixtures/       C sources, build script, 121 committed binaries + MANIFEST.tsv
+tests/          fixture, CLI, property and reference-vector suites; reference/*.tsv
+examples/       throughput, cluster_eval, gen_synth, fuzzy_hash
+scripts/        demo, LOC, reference-tool builders, table generators
+docs/           ARCHITECTURE.md, THREAT_MODEL.md
+```
 
 ## Limitations
 
@@ -492,13 +560,11 @@ The main rulings, with reasons and costs, are in
   and no mmap. Clustering is O(n²) in the worst case, and the TLSH pruning
   is weak on equally sized inputs.
 * **Parser trust.** goblin does the container parsing. binscope catches its
-  panics, but this project has not fuzzed it beyond 492 deterministic
-  mutations and proptest's garbage-behind-magic cases.
+  panics, but it has not been fuzzed beyond 492 deterministic mutations and
+  proptest's garbage-behind-magic cases.
 * **Fixture rebuilds** need macOS (clang, rust-lld, lipo). A different
   toolchain version produces different bytes, after which the reference
   vectors must be regenerated.
-* **CI** (`.github/workflows/ci.yml`) mirrors `make check`. It has never
-  run, because this repository has not been pushed anywhere yet.
 
 ## Roadmap
 
@@ -512,20 +578,8 @@ The main rulings, with reasons and costs, are in
 * A fuzzing harness (cargo-fuzz) over `format::parse` and the digest parsers.
 * A streaming mode with mmap and a size cap for very large inputs.
 
-## Repository layout
-
-```text
-src/            library + CLI (format/, fuzzy/, hashes/, rules/, triage, cluster, report, strings, entropy, anomalies)
-rules/          built-in YAML capability rules
-fixtures/       C sources, build script, 121 committed binaries + MANIFEST.tsv
-tests/          fixture, CLI, property and reference-vector suites; reference/*.tsv
-examples/       throughput, cluster_eval, gen_synth, fuzzy_hash
-scripts/        demo, LOC, reference-tool builders, table generators
-docs/           ARCHITECTURE.md, THREAT_MODEL.md
-```
-
 ## License
 
-MIT (see [LICENSE](LICENSE)). Third-party data (TLSH constant tables, pefile
+MIT — see [LICENSE](LICENSE). Third-party data (TLSH constant tables, pefile
 ordinal tables) and the reference-tool provenance are listed in
 [DATA.md](DATA.md).
