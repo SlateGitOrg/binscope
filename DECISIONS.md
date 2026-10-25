@@ -51,7 +51,7 @@ Rulings made while building binscope, in the format
 ## Engineering
 
 - Ruling: whole-file passes (digests, ssdeep, TLSH, strings) run on `std::thread::scope` workers for inputs >= 1 MiB — 4 independent O(n) passes; no new dependency — cost if wrong: thread overhead on mid-sized files (threshold keeps small files single-threaded).
-- Ruling: MSRV 1.85 (`Option::is_none_or`), edition 2021 — current stable features without nightly — cost if wrong: older toolchains cannot build.
+- Ruling: MSRV 1.88, edition 2021 — the floor set by the locked dependencies (`sha2` 0.11 and `proptest` 1.12 declare `rust-version = 1.88`); the code itself needs nothing newer, and the CI `msrv` job builds every target on exactly this toolchain so the declared floor cannot drift from the lock file again — cost if wrong: toolchains older than 1.88 cannot build.
 - Ruling: coverage gate = 85% of lines over the whole crate (generated tables excluded), measured with cargo-llvm-cov — gating the whole crate is stricter than gating only the core logic (which sits above 95%) and keeps the CLI and report code honest too — cost if wrong: `make check` requires cargo-llvm-cov installed.
 - Ruling: `make coverage` exports `CARGO_LLVM_COV_TARGET_DIR=<target>/llvm-cov-binscope` — with a shared `CARGO_TARGET_DIR`, concurrent cargo-llvm-cov runs from other crates cleaned and merged each other's `.profraw` files (observed: a run reported 51.8% with another crate's sources in the table) — cost if wrong: one extra instrumented build directory on disk.
 - Ruling: `--fail-on` uses exit status 3, distinct from errors (1) and usage (2) — CI can tell "findings" from "broken run" — cost if wrong: none.

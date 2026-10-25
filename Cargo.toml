@@ -2,7 +2,7 @@
 name = "binscope"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "MIT"
 description = "Static triage for ELF, Mach-O and PE binaries: sections, entropy, imports, imphash, strings, ssdeep/TLSH fuzzy hashing, YAML capability rules and similarity clustering."
 readme = "README.md"

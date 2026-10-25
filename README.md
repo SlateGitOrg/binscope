@@ -94,7 +94,7 @@ Threat model: [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 
 ## Quick start
 
-Prerequisites: Rust 1.85 or newer (CI builds on 1.85 and current stable),
+Prerequisites: Rust 1.88 or newer (CI builds on 1.88 and current stable),
 GNU make, and `python3` for `make demo`. `make check` additionally needs
 [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov)
 (`cargo install cargo-llvm-cov --locked`). Everything runs offline against
@@ -517,7 +517,7 @@ lines of integration tests.
 
 CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the same gates:
 rustfmt and clippy/rustdoc, the test suite on Linux and macOS, the coverage
-floor, a build on the 1.85 MSRV, and the offline demo plus a quick benchmark.
+floor, a build on the 1.88 MSRV, and the offline demo plus a quick benchmark.
 
 ## Project layout
 
