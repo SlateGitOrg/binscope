@@ -506,8 +506,8 @@ cargo llvm-cov --summary-only --ignore-filename-regex '(hashes/ordinals|fuzzy/tl
 
 | scope | lines | line coverage |
 |---|---:|---:|
-| whole crate (generated tables excluded), the gated figure | 3,926 | **94.45%** |
-| core logic (excluding `main.rs`, `report.rs`, `synth.rs`) | 3,317 | 95.12% |
+| whole crate (generated tables excluded), the gated figure | 3,926 | **94.47%** |
+| core logic (excluding `main.rs`, `report.rs`, `synth.rs`) | 3,317 | 95.15% |
 | lowest module: `format/elf.rs` (rare section-less / RELRO branches) | 209 | 82.78% |
 
 Lines are as llvm-cov counts them. `make loc` counts non-blank, non-comment

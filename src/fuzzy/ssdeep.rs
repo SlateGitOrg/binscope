@@ -336,7 +336,7 @@ impl FromStr for SsdeepHash {
         let p2 = rest.split(',').next().unwrap_or("");
         let block_size: u64 = bs.trim().parse().map_err(|_| bad("block size is not a number"))?;
         if block_size < MIN_BLOCKSIZE
-            || block_size % MIN_BLOCKSIZE != 0
+            || !block_size.is_multiple_of(MIN_BLOCKSIZE)
             || !(block_size / MIN_BLOCKSIZE).is_power_of_two()
         {
             return Err(bad("block size must be 3 * 2^k"));
