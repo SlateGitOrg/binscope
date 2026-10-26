@@ -455,7 +455,7 @@ That is why binscope reports both.
 
 ### Design decisions
 
-Each ruling, with its reason and its cost if wrong, is in
+Each decision, with its reason and its cost if wrong, is in
 [DECISIONS.md](DECISIONS.md). The main ones:
 
 * Both ssdeep and TLSH are implemented, and libfuzzy and TLSH 4.12.1
